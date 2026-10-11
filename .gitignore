@@ -1,0 +1,48 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Fabric / Loom
+run/
+runs/
+.fabric/
+remappedSrc/
+.classlessLoomCache/
+
+# Build output
+Flashback-Redroided-*.zip
+
+# Java
+*.class
+
+# NOTE: *.jar is deliberately NOT ignored.
+# deps/ and ffmpeg/ ship jars that build.gradle references via
+# `shadow files(...)`, so they must stay tracked or a fresh clone
+# cannot build. gradle-wrapper.jar is tracked by convention.
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / crash reports
+logs/
+*.log
+crash-reports/
+hs_err_pid*.log
+replay_pid*.log
+
+# Local machine overrides
+local.properties

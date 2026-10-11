@@ -1,0 +1,58 @@
+Flashback Redroided
+Copyright (c) 2026 WhalterMC
+
+The mod's own code is All Rights Reserved. See LICENSE in the repo
+root (META-INF/LICENSE_flashback-android inside the mod jar) for the
+license terms that apply to it.
+Source code: https://github.com/Redroided-Team/Flashback-Redroided
+
+This mod is an unofficial compatibility addon. It does not include the
+Flashback mod itself; users must download Flashback separately from
+https://modrinth.com/mod/flashback and comply with its license.
+
+Bundled third-party components
+==============================
+
+The components below are NOT covered by the mod's own license. They
+remain under their respective licenses, which grant you redistribution
+and other rights independently of this mod's license.
+
+FFmpeg
+  Files:     lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**
+  License:   GPL-3.0-or-later (unmodified FFmpeg Android/arm64 shared
+             libraries built from the official FFmpeg sources;
+             see META-INF/licenses/GPL-3.0.txt)
+  Homepage:  https://ffmpeg.org
+  Source:    https://ffmpeg.org/download.html
+  Copyright: FFmpeg contributors
+
+JavaCPP
+  Files:     org/bytedeco/javacpp/**
+  License:   Apache License 2.0 (see META-INF/licenses/Apache-2.0.txt)
+  Homepage:  https://github.com/bytedeco/javacpp
+  Copyright: Samuel Audet
+
+imgui-java (Android natives / ImGui binding used by Flashback)
+  Files:     io/imgui/java/**, imgui/**
+  License:   MIT (see META-INF/licenses/MIT.txt)
+  Homepage:  https://github.com/Redroided-Team/imgui-java
+  Upstream:  https://github.com/SpaiR/imgui-java
+  Copyright: SpaiR and contributors; Dear ImGui by Omar Cornut
+
+LLVM libc++ runtime (pre-loaded so the ImGui native resolves; shipped
+under a bumped SONAME so the game runtime's own libc++ can't shadow it)
+  Files:     lib/arm64-v8a/libc++_fba.so
+  License:   Apache License 2.0 with LLVM Exceptions
+             (https://llvm.org/foundation/relicensing/)
+  Homepage:  https://libcxx.llvm.org
+  Copyright: The LLVM Project (see https://llvm.org/LICENSE.txt)
+
+LWJGL tinyfd
+  Files:     org/lwjgl/util/tinyfd/** (Java classes only, no natives)
+  License:   BSD-3-Clause, see https://www.lwjgl.org/license
+  Homepage:  https://www.lwjgl.org
+  Copyright: LWJGL contributors
+
+Android system libraries loaded at runtime (libmediandk, libandroid) are
+part of the Android operating system and are not redistributed by this
+mod.

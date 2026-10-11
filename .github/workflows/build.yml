@@ -1,0 +1,95 @@
+name: Build
+
+on:
+  push:
+    branches: ["1.21", "26.x", "main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["1.21", "26.x", "main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [1.21, 26.x, main]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build mod jar
+        run: |
+          chmod +x gradlew
+          ./gradlew build --parallel
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: fba-${{ matrix.branch }}-${{ github.sha }}
+          path: |
+            build/libs/fba-*-*.jar
+            build/libs/flashback-redroided-*-*.jar
+            !build/libs/*-sources.jar
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download built jars
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fba-*-${{ github.sha }}
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.jar
+          generate_release_notes: true
+
+  dev-release:
+    if: github.ref_type == 'branch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        branch: [1.21, 26.x, main]
+    # One updater per rolling tag at a time: concurrent runs otherwise
+    # delete/upload the same asset simultaneously and GitHub 404s.
+    concurrency:
+      group: dev-release-${{ matrix.branch }}
+      cancel-in-progress: false
+    steps:
+      - name: Download jar for ${{ matrix.branch }}
+        uses: actions/download-artifact@v4
+        with:
+          name: fba-${{ matrix.branch }}-${{ github.sha }}
+          path: dist
+
+      - name: Publish rolling dev release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-${{ matrix.branch }}
+          name: Dev build (${{ matrix.branch }})
+          body: Latest dev build from ${{ matrix.branch }} @ ${{ github.sha }}
+          prerelease: true
+          files: dist/*.jar
