@@ -1,0 +1,21 @@
+{
+  "required": false,
+  "package": "com.whaltermc.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "AsyncFileDialogsMixin",
+    "FlashbackFFmpegFrameRecorderMixin",
+    "FFmpegRecordImageDiagMixin",
+    "CustomImGuiImplGlfwMixin",
+    "ReplayUIMobileCursorMixin",
+    "CustomImGuiImplB3DMixin",
+    "ExportJobMixin",
+    "ExportDoneMixin",
+    "TinyFDBootstrapMixin",
+    "VideoCodecProbeMixin",
+    "VideoContainerDiagMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

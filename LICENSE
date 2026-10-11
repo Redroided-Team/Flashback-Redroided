@@ -1,0 +1,38 @@
+# Flashback Redroided — All Rights Reserved
+
+Copyright (c) 2026 WhalterMC
+
+Flashback Redroided (the mod's own source code, compiled classes, assets
+and documentation authored by WhalterMC) is proprietary.
+
+All rights reserved.
+
+Permission is not granted to copy, modify, distribute, redistribute,
+sublicense, publish, or otherwise make Flashback Redroided or any portion
+of it available to others, except with explicit written permission from
+WhalterMC.
+
+The source code may be viewed for personal reference, learning and
+inspection purposes only. Creating and sharing patches or derivative
+works of the mod's own code requires explicit written permission.
+
+## Third-party components
+
+This distribution bundles third-party components that are NOT covered by
+the license above. Those components remain under their respective
+licenses, and nothing in this license restricts your rights with respect
+to them. See the NOTICE file and the license texts under META-INF/ for
+details:
+
+- FFmpeg (lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**) — GPL-3.0-or-later
+- JavaCPP (org/bytedeco/javacpp/**) — Apache License 2.0
+- imgui-java (io/imgui/java/**) — MIT
+
+The Flashback mod itself is NOT included in this distribution; obtain it
+separately and follow its own license.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL WHALTERMC BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.
