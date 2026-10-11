@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "id": "flashback_android",
+  "version": "${version}",
+  "name": "FBA - Flashback For Android",
+  "description": "Android compatibility patches for Flashback (ImGui binding remap + FFmpeg NDK + file dialogs).",
+  "icon": "assets/flashback_android/icon.png",
+  "environment": "client",
+
+  "authors": [
+    {
+      "name": "WhalterMC",
+      "contact": {
+        "homepage": "https://whaltermc.vercel.app"
+      }
+    }
+  ],
+
+  "contributors": [
+    {
+      "name": "moulberry",
+      "contact": {
+        "homepage": "https://github.com/moulberry"
+      }
+    }
+  ],
+
+  "license": "All-Rights-Reserved",
+
+  "contact": {
+    "homepage": "https://whaltermc.vercel.app/fba",
+    "sources": "https://github.com/Redroided-Team/Flashback-Redroided",
+    "issues": "https://github.com/Redroided-Team/Flashback-Redroided/issues"
+  },
+
+  "entrypoints": {
+    "main": [
+      "dev.whaltermc.fba.FbaInitializer"
+    ],
+    "client": [
+      "dev.whaltermc.fba.FbaClientInit"
+    ],
+    "preLaunch": [
+      "dev.whaltermc.fba.FbaPreLaunch"
+    ]
+  },
+
+  "mixins": [
+    "flashback_android.client.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": ">=1.21 <26.1",
+    "fabric-api": "*",
+    "flashback": "*"
+  },
+
+  "custom": {
+    "modmenu": {
+      "parent": "flashback"
+    }
+  }
+}

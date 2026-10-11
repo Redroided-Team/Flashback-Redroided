@@ -1,0 +1,209 @@
+plugins {
+id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+id 'com.gradleup.shadow' version '9.2.2'
+id 'maven-publish'
+id 'com.modrinth.minotaur' version '2.9.0'
+}
+
+group = project.maven_group
+version = project.mod_version
+
+modrinth {
+token = System.getenv("MODRINTH_TOKEN")
+projectId = project.findProperty("modrinth_id") ?: ""
+versionNumber = project.mod_version
+versionType = "release"
+gameVersions = [project.minecraft_version]
+loaders = ["fabric"]
+changelog = System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
+uploadFile = tasks.named("remapJar")
+}
+
+base {
+archivesName = project.archives_base_name
+}
+
+repositories {
+maven {
+name = "Modrinth"
+url = "https://api.modrinth.com/maven"
+}
+maven {
+name = "Fabric"
+url = "https://maven.fabricmc.net/"
+}
+mavenCentral()
+}
+
+loom {
+splitEnvironmentSourceSets()
+
+mods {
+    "flashback_android" {
+        sourceSet sourceSets.main
+        sourceSet sourceSets.client
+    }
+}
+
+}
+
+dependencies {
+minecraft "com.mojang:minecraft:${minecraft_version}"
+mappings loom.officialMojangMappings()
+modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+modCompileOnly "maven.modrinth:4das1Fjq:${flashback_version}"
+
+// Bundled via Jar-in-Jar: @WrapOperation injections are inert without it
+// (neither Fabric Loader nor Flashback ship MixinExtras).
+modImplementation(include("io.github.llamalad7:mixinextras-fabric:0.5.5"))
+
+// Compile-only: MC and launchers provide these dialog bindings at runtime
+// (Copper ships TinyFileDialogs/SDL stand-ins first on the classpath, so
+// bundling our own copies would shadow them). The classes are only touched
+// inside guarded legs, so a launcher without them cascades instead of
+// breaking mixin loading.
+modCompileOnly "org.lwjgl:lwjgl-nfd:3.3.3"
+modCompileOnly "org.lwjgl:lwjgl-tinyfd:3.3.3"
+
+shadow files("ffmpeg/javacpp.jar")
+shadow files("ffmpeg/javacpp-android-arm64.jar")
+shadow files("ffmpeg/ffmpeg.jar")
+shadow files("ffmpeg/ffmpeg-android-arm64-gpl.jar")
+
+shadow files("deps/imgui-binding-1.90.0.jar")
+shadow files("deps/imgui-java-natives-android.jar")
+
+}
+
+def modVersion = providers.gradleProperty("mod_version")
+
+processResources {
+inputs.property("version", modVersion)
+
+filesMatching("fabric.mod.json") {
+    expand(version: modVersion.get())
+}
+
+}
+
+java {
+sourceCompatibility = JavaVersion.VERSION_21
+targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+options.release = 21
+}
+
+jar {
+    archiveBaseName.set(project.archives_base_name)
+
+    from("LICENSE") {
+        into "META-INF"
+        rename { "${it}_flashback-android" }
+    }
+
+    from("NOTICE") {
+        into "META-INF"
+    }
+
+}
+
+shadowJar {
+    archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
+    archiveVersion.set(project.version.toString())
+    destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
+
+    from(sourceSets.main.output)
+    from(sourceSets.client.output)
+
+    from("LICENSE") {
+        into "META-INF"
+        rename { "${it}_flashback-android" }
+    }
+
+    from("NOTICE") {
+        into "META-INF"
+    }
+
+    configurations = [project.configurations.shadow]
+
+    exclude("org/bytedeco/javacpp/tools/Builder*")
+    exclude("org/bytedeco/javacpp/tools/BuildMojo*")
+    exclude("org/bytedeco/javacpp/tools/CacheMojo*")
+    exclude("org/bytedeco/javacpp/tools/ClearMojo*")
+    exclude("org/bytedeco/javacpp/tools/ParseMojo*")
+    exclude("org/bytedeco/javacpp/tools/CommandExecutor*")
+    exclude("org/bytedeco/javacpp/tools/UserClassLoader*")
+    exclude("org/bytedeco/javacpp/tools/ClassScanner*")
+    exclude("org/bytedeco/javacpp/tools/ClassFilter*")
+    exclude("org/bytedeco/javacpp/chrono/**")
+    exclude("META-INF/maven/**")
+    exclude("META-INF/native-image/**")
+    // Dead CLI executables from the FFmpeg Android jar. Nothing loads or
+    // executes them: JavaCPP's Loader extraction is disabled on Android
+    // (NativeLoader sets loadlibraries=false and System.loads the .so
+    // files directly), and no code references these paths. Dropping them
+    // also keeps executable binaries out of the distributed mod JAR.
+    exclude("lib/arm64-v8a/ffmpeg")
+    exclude("lib/arm64-v8a/ffprobe")
+    // Defensive: this mod only supports Android ARM64 (see NativeLoader).
+    // Never ship other-ABI natives or multi-release module-info stubs even
+    // if a future dependency jar starts bundling them.
+    exclude("lib/armeabi-v7a/**")
+    exclude("lib/x86/**")
+    exclude("lib/x86_64/**")
+    exclude("META-INF/versions/**")
+
+    manifest {
+        attributes("Class-Path": "")
+    }
+
+    doLast {
+        def f = archiveFile.get().asFile
+        def tmp = new File(f.parentFile, f.name + ".nomanifestpath")
+        f.withInputStream { zin ->
+            def zis = new java.util.zip.ZipInputStream(zin)
+            def zos = new java.util.zip.ZipOutputStream(tmp.newOutputStream())
+            def entry
+            def buf = new byte[8192]
+            int n
+            while ((entry = zis.nextEntry) != null) {
+                zos.putNextEntry(new java.util.zip.ZipEntry(entry.name).tap {
+                    time = entry.time
+                })
+                if (entry.name == "META-INF/MANIFEST.MF") {
+                    def baos = new ByteArrayOutputStream()
+                    while ((n = zis.read(buf)) != -1) {
+                        baos.write(buf, 0, n)
+                    }
+                    def text = baos.toString("UTF-8")
+                    text = text.replaceAll(/(?m)^Class-Path:[^\r\n]*(\r?\n[ \t][^\r\n]*)*\r?\n/, "")
+                    zos.write(text.getBytes("UTF-8"))
+                } else {
+                    while ((n = zis.read(buf)) != -1) {
+                        zos.write(buf, 0, n)
+                    }
+                }
+                zos.closeEntry()
+            }
+            zos.close()
+        }
+        if (!tmp.renameTo(f)) {
+            f.delete()
+            tmp.renameTo(f)
+        }
+    }
+}
+
+tasks.named("assemble") {
+dependsOn(shadowJar)
+}
+
+tasks.named("remapJar") {
+    dependsOn(shadowJar)
+    inputFile.set(shadowJar.archiveFile)
+    archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
+}

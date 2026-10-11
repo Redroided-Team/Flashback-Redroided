@@ -1,0 +1,25 @@
+{
+  "required": false,
+  "package": "dev.whaltermc.fba.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "FileDialogMixin",
+    "FFmpegRecorderMixin",
+    "ImGuiGlfwMixin",
+    "ImGuiWindowMixin",
+    "ReplayUIMixin",
+    "CursorInputMixin",
+    "VideoCodecProbeMixin",
+    "FramebufferMixin",
+    "ClientTickMixin",
+    "ExportJobMixin",
+    "ExportDoneMixin",
+    "TinyFDBootstrapMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  },
+  "mixinextras": {
+    "minVersion": "0.5.5"
+  }
+}
