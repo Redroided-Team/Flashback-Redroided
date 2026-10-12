@@ -144,7 +144,7 @@ public abstract class VideoCodecProbeMixin {
                     }
 
                     ctx = fresh;
-                } catch (Throwable ignored) {
+                } catch (Throwable ignoredReset) {
                     if (fresh != null && !fresh.isNull()) {
                         try { avcodec_free_context(fresh); } catch (Throwable ignored) {}
                     }
