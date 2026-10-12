@@ -28,6 +28,7 @@ jobs:
     if: ${{ inputs.to_modrinth == true }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         branch: [1.21, 26.x, main]
     steps:
@@ -51,7 +52,6 @@ jobs:
           ./gradlew build --parallel
 
       - name: Publish to Modrinth
-        continue-on-error: true
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
           MODRINTH_CHANGELOG: ${{ inputs.changelog }}
@@ -61,6 +61,7 @@ jobs:
     if: ${{ inputs.to_curseforge == true }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         branch: [1.21, 26.x, main]
     steps:
@@ -84,7 +85,6 @@ jobs:
           ./gradlew build --parallel
 
       - name: Publish to CurseForge
-        continue-on-error: true
         env:
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
           CURSEFORGE_CHANGELOG: ${{ inputs.changelog }}
