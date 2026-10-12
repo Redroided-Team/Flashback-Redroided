@@ -9,12 +9,14 @@ id 'me.modmuss50.mod-publish-plugin' version '2.2.1'
 group = project.maven_group
 version = project.mod_version
 
+def mcVersions = ((project.findProperty("mc_versions") ?: project.minecraft_version).toString()).split(",").collect { it.trim() }.findAll { !it.isEmpty() }
+
 modrinth {
 token = System.getenv("MODRINTH_TOKEN")
 projectId = project.findProperty("modrinth_id") ?: ""
 versionNumber = project.mod_version
 versionType = project.findProperty("release_channel") ?: "release"
-gameVersions = [project.minecraft_version]
+gameVersions = mcVersions
 loaders = ["fabric"]
 changelog = System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
 uploadFile = tasks.named("remapJar")
@@ -22,7 +24,7 @@ uploadFile = tasks.named("remapJar")
 
 publishMods {
 file = remapJar.archiveFile
-displayName = "${project.archives_base_name}-${project.minecraft_version}-${project.mod_version}"
+displayName = "${project.archives_base_name}-${project.mc_range}-${project.mod_version}"
 version = project.mod_version
 changelog = System.getenv("CURSEFORGE_CHANGELOG") ?: System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
 def channel = (project.findProperty("release_channel") ?: "release").toString()
@@ -32,7 +34,7 @@ modLoaders.add("fabric")
 curseforge {
 projectId = project.findProperty("curseforge_id") ?: ""
 accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
-minecraftVersions.add(project.minecraft_version)
+minecraftVersions.addAll(mcVersions)
 client = true
 requires("fabric-api")
 }
