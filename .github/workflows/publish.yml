@@ -1,0 +1,92 @@
+name: Publish mod
+
+# Manual only: publishing to Modrinth / CurseForge never runs on push,
+# pull_request, or tags. Trigger it from Actions -> Publish mod -> Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release channel on Modrinth/CurseForge"
+        type: choice
+        options: [release, beta, alpha]
+        default: release
+      to_modrinth:
+        description: "Upload to Modrinth"
+        type: boolean
+        default: true
+      to_curseforge:
+        description: "Upload to CurseForge"
+        type: boolean
+        default: true
+      changelog:
+        description: "Changelog (Markdown, empty = default text)"
+        type: string
+        default: ""
+
+jobs:
+  modrinth:
+    if: ${{ inputs.to_modrinth == true }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [1.21, 26.x, main]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build mod jar
+        run: |
+          chmod +x gradlew
+          ./gradlew build --parallel
+
+      - name: Publish to Modrinth
+        continue-on-error: true
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          MODRINTH_CHANGELOG: ${{ inputs.changelog }}
+        run: ./gradlew modrinth --no-configuration-cache --parallel "-Prelease_channel=${{ inputs.release_type }}"
+
+  curseforge:
+    if: ${{ inputs.to_curseforge == true }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [1.21, 26.x, main]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build mod jar
+        run: |
+          chmod +x gradlew
+          ./gradlew build --parallel
+
+      - name: Publish to CurseForge
+        continue-on-error: true
+        env:
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          CURSEFORGE_CHANGELOG: ${{ inputs.changelog }}
+          MODRINTH_CHANGELOG: ${{ inputs.changelog }}
+        run: ./gradlew curseforge --no-configuration-cache --parallel "-Prelease_channel=${{ inputs.release_type }}"
