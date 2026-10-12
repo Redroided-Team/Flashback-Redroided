@@ -3,7 +3,7 @@ id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 id 'com.gradleup.shadow' version '9.2.2'
 id 'maven-publish'
 id 'com.modrinth.minotaur' version '2.9.0'
-id 'me.hypherionmc.cursegradle' version '2.0.1'
+id 'me.modmuss50.mod-publish-plugin' version '2.2.1'
 }
 
 group = project.maven_group
@@ -20,21 +20,21 @@ changelog = System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for chan
 uploadFile = tasks.named("remapJar")
 }
 
-curseforge {
-apiKey = System.getenv("CURSEFORGE_TOKEN") ?: ""
-options {
-forgeGradleIntegration = false
-fabricIntegration = true
-}
-project {
-id = project.findProperty("curseforge_id") ?: ""
-changelog = System.getenv("CURSEFORGE_CHANGELOG") ?: System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
-changelogType = "markdown"
-releaseType = project.findProperty("release_channel") ?: "release"
-addGameVersion project.minecraft_version
-mainArtifact(remapJar) {
+publishMods {
+file = remapJar.archiveFile
 displayName = "${project.archives_base_name}-${project.minecraft_version}-${project.mod_version}"
-}
+version = project.mod_version
+changelog = System.getenv("CURSEFORGE_CHANGELOG") ?: System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
+def channel = (project.findProperty("release_channel") ?: "release").toString()
+type = channel == "alpha" ? ALPHA : channel == "beta" ? BETA : STABLE
+modLoaders.add("fabric")
+
+curseforge {
+projectId = project.findProperty("curseforge_id") ?: ""
+accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
+minecraftVersions.add(project.minecraft_version)
+client = true
+requires("fabric-api")
 }
 }
 
