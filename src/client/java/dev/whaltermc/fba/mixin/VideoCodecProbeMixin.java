@@ -121,8 +121,7 @@ public abstract class VideoCodecProbeMixin {
             if (options != null) {
                 av_dict_set(options, "ndk_codec", "1", 0);
             }
-        } catch (Throwable t) {
-            LOGGER.debug("ndk_codec option unavailable", t);
+        } catch (Throwable ignored) {
         }
 
         String codecName = "<unknown>";
@@ -157,8 +156,7 @@ public abstract class VideoCodecProbeMixin {
                     }
 
                     ctx = fresh;
-                } catch (Throwable t) {
-                    LOGGER.debug("Context reset failed for {}", codecName, t);
+                } catch (Throwable ignored) {
                     if (fresh != null && !fresh.isNull()) {
                         try { avcodec_free_context(fresh); } catch (Throwable ignored) {}
                     }
@@ -168,8 +166,7 @@ public abstract class VideoCodecProbeMixin {
 
             try {
                 ctx.pix_fmt(fmt);
-            } catch (Throwable t) {
-                LOGGER.debug("pix_fmt {} unavailable on {}", fmt, codecName, t);
+            } catch (Throwable ignored) {
                 continue;
             }
 

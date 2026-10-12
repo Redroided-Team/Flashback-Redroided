@@ -1,16 +1,18 @@
 # Flashback Redroided
 
-Android compatibility patches for [Flashback](https://modrinth.com/mod/flashback).
+Flashback on Android. Runtime patches so [Flashback](https://modrinth.com/mod/flashback) replays, ImGui UI, file dialogs, exports and FFmpeg recording work on Android Minecraft launchers.
 
 Flashback Redroided is a small addon that patches the parts of Flashback that don't work properly on Android Minecraft launchers. Instead of modifying and redistributing the original Flashback jar, it uses Fabric mixins and extra compatibility code to patch those parts at runtime. It is an unofficial project and is not affiliated with Flashback or Moulberry.
+
+> Need help? Join the Discord: https://discord.gg/dKgFxHKc7T
 
 ## Which jar
 
 | Branch | Minecraft | Jar |
 | --- | --- | --- |
 | `1.21` | 1.21 – 1.21.11 | `fba-1.21-1.21.11-<version>.jar` |
-| `26.x` | 26.1 – 26.2 | `fba-26.1-26.2-<version>-all.jar` |
-| `main` | 26.3 | `fba-26.3-<version>-all.jar` |
+| `26.x` | 26.1 – 26.2 | `fba-26.1-26.2-<version>.jar` |
+| `main` | 26.3 | `fba-26.3-<version>.jar` |
 
 Pick the jar that matches your Minecraft version.
 
@@ -69,9 +71,10 @@ The finished jar is in `build/libs/`.
 
 ## Links
 
-- Source and issues: https://github.com/whaltermc/Flashback-Redroided
+- Source and issues: https://github.com/Redroided-Team/Flashback-Redroided
 - Flashback: https://modrinth.com/mod/flashback
 - Website: https://whaltermc.vercel.app
+- Discord: https://discord.gg/dKgFxHKc7T
 
 ## License
 

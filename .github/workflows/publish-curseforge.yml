@@ -1,0 +1,48 @@
+name: Publish to CurseForge
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release channel on CurseForge"
+        type: choice
+        options: [release, beta, alpha]
+        default: release
+      changelog:
+        description: "Changelog (Markdown, empty = default text)"
+        type: string
+        default: ""
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [1.21, 26.x, main]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build mod jar
+        run: |
+          chmod +x gradlew
+          ./gradlew build --parallel
+
+      - name: Publish to CurseForge
+        continue-on-error: true
+        env:
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          CURSEFORGE_CHANGELOG: ${{ inputs.changelog }}
+          MODRINTH_CHANGELOG: ${{ inputs.changelog }}
+        run: ./gradlew curseforge --no-configuration-cache --parallel "-Prelease_channel=${{ inputs.release_type }}"

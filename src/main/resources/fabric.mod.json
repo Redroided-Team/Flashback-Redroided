@@ -3,7 +3,7 @@
   "id": "flashback_android",
   "version": "${version}",
   "name": "FBA - Flashback For Android",
-  "description": "Android compatibility patches for Flashback (ImGui binding remap + FFmpeg NDK + file dialogs).",
+  "description": "Flashback on Android. Runtime patches so Flashback replays, ImGui UI, file dialogs, exports and FFmpeg recording work on Android launchers. Requires the original Flashback mod, Fabric Loader and Fabric API.",
   "icon": "assets/flashback_android/icon.png",
   "environment": "client",
 
@@ -30,7 +30,8 @@
   "contact": {
     "homepage": "https://whaltermc.vercel.app/fba",
     "sources": "https://github.com/Redroided-Team/Flashback-Redroided",
-    "issues": "https://github.com/Redroided-Team/Flashback-Redroided/issues"
+    "issues": "https://github.com/Redroided-Team/Flashback-Redroided/issues",
+    "discord": "https://discord.gg/dKgFxHKc7T"
   },
 
   "entrypoints": {
