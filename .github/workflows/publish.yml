@@ -89,4 +89,4 @@ jobs:
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
           CURSEFORGE_CHANGELOG: ${{ inputs.changelog }}
           MODRINTH_CHANGELOG: ${{ inputs.changelog }}
-        run: ./gradlew curseforge --no-configuration-cache --parallel "-Prelease_channel=${{ inputs.release_type }}"
+        run: ./gradlew publishMods --no-configuration-cache --parallel "-Prelease_channel=${{ inputs.release_type }}"
