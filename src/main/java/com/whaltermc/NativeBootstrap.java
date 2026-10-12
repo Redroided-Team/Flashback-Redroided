@@ -91,8 +91,7 @@ public final class NativeBootstrap {
                 }
                 if (all) return dir;
             }
-        } catch (Throwable t) {
-            LOGGER.debug("Launcher dir lookup failed", t);
+        } catch (Throwable ignored) {
         }
         return null;
     }

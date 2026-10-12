@@ -2,16 +2,10 @@ package com.whaltermc;
 
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.DoubleBuffer;
 
 public final class GlfwCompat {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger("flashback_android/input");
-    private static final boolean DEBUG = Boolean.getBoolean("flashback.debug.input");
-    private static final long[] LAST_LOG = new long[8];
 
     private static volatile long lastPressMs;
 
@@ -52,7 +46,6 @@ public final class GlfwCompat {
         }
         if (attrib == GLFW.GLFW_FOCUSED) {
             boolean forced = value == 0 && MobileCompat.isMobile();
-            debug(0, "GLFW_FOCUSED raw=" + value + (forced ? " -> forced to 1 (mobile)" : ""));
             if (forced) {
                 return GLFW.GLFW_TRUE;
             }
@@ -69,7 +62,6 @@ public final class GlfwCompat {
         state = MobileCompat.mouseButton(button, state);
         if (state != 0) {
             lastPressMs = System.currentTimeMillis();
-            debug(1, "mouse button " + button + " state=" + state);
         }
         return state;
     }
@@ -87,7 +79,6 @@ public final class GlfwCompat {
         }
         if (mode == GLFW.GLFW_CURSOR) {
             value = MobileCompat.reportedCursorMode(window, value);
-            debug(2, "cursor mode=" + value + " (212993 normal, 212994 hidden, 212995 disabled)");
         }
         return value;
     }
@@ -111,7 +102,6 @@ public final class GlfwCompat {
         // warps (grab-center, WantSetMousePos, ungrab-restore) read back with
         // a stale offset, snapping the cursor/camera on every programmatic
         // move during a drag.
-        debug(3, "cursor pos " + x[0] + ", " + y[0]);
     }
 
     public static void glfwGetCursorPos(long window, DoubleBuffer x, DoubleBuffer y) {
@@ -130,7 +120,6 @@ public final class GlfwCompat {
         }
         MobileCompat.motion(x.get(0), y.get(0));
         // Raw like 1.21: see above.
-        debug(3, "cursor pos " + x.get(0) + ", " + y.get(0));
     }
 
     /**
@@ -145,17 +134,8 @@ public final class GlfwCompat {
         try {
             long name = GLFW.nglfwGetMonitorName(monitor);
             return name == 0L ? "" : org.lwjgl.system.MemoryUtil.memUTF8(name);
-        } catch (Throwable t) {
+        } catch (Throwable ignored) {
             return "";
-        }
-    }
-
-    private static void debug(int slot, String message) {
-        if (!DEBUG) return;
-        long now = System.currentTimeMillis();
-        if (now - LAST_LOG[slot] >= 1000) {
-            LAST_LOG[slot] = now;
-            LOGGER.info(message);
         }
     }
 }

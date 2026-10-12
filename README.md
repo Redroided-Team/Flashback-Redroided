@@ -1,8 +1,10 @@
 # Flashback Redroided
 
-Android compatibility patches for [Flashback](https://modrinth.com/mod/flashback).
+Flashback on Android. Runtime patches so [Flashback](https://modrinth.com/mod/flashback) replays, ImGui UI, file dialogs, exports and FFmpeg recording work on Android Minecraft launchers.
 
-Flashback Redroided is a small addon that patches parts of Flashback that don't work properly on Android Minecraft launchers.
+Requires the original Flashback mod, Fabric Loader and Fabric API. This project does not redistribute Flashback — download it separately.
+
+> Need help? Join the Discord: https://discord.gg/dKgFxHKc7T
 
 ### Installation
 
@@ -54,6 +56,7 @@ Please download Flashback separately and follow its license.
 - Website: https://whaltermc.vercel.app
 - Source: https://github.com/Redroided-Team/Flashback-Redroided
 - Flashback: https://modrinth.com/mod/flashback
+- Discord: https://discord.gg/dKgFxHKc7T
 
 ### Issues
 
