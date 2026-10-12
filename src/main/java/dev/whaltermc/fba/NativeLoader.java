@@ -115,8 +115,7 @@ public final class NativeLoader {
                 }
                 if (all) return dir;
             }
-        } catch (Throwable t) {
-            LOGGER.debug("Launcher dir lookup failed", t);
+        } catch (Throwable ignored) {
         }
         return null;
     }
@@ -125,7 +124,6 @@ public final class NativeLoader {
         for (String lib : LIBS) {
             Optional<Path> src = mod.findPath(RES_DIR + lib);
             if (src.isEmpty()) {
-                LOGGER.debug("Bundled native not found: {}{}", RES_DIR, lib);
                 continue;
             }
             Path dst = dir.resolve(lib);
@@ -158,6 +156,5 @@ public final class NativeLoader {
             } catch (Throwable ignored) {
             }
         }
-        LOGGER.debug("System library {} unavailable", name);
     }
 }

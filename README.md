@@ -1,8 +1,10 @@
 # Flashback Redroided
 
-Android compatibility patches for [Flashback](https://modrinth.com/mod/flashback).
+Flashback on Android. Runtime patches so [Flashback](https://modrinth.com/mod/flashback) replays, ImGui UI, file dialogs, exports and FFmpeg recording work on Android Minecraft launchers.
 
-Flashback Redroided is a small addon that patches parts of Flashback that don't work properly on Android Minecraft launchers.
+Flashback Redroided is a small addon that patches parts of Flashback that don't work properly on Android Minecraft launchers. Requires the original Flashback mod, Fabric Loader and Fabric API.
+
+> Need help? Join the Discord: https://discord.gg/dKgFxHKc7T
 
 ### Branches
 
@@ -10,13 +12,13 @@ Flashback Redroided is a small addon that patches parts of Flashback that don't 
 | --- | --- | --- |
 | `1.21` | 1.21 – 1.21.11 | `fba-1.21-1.21.11-<version>.jar` |
 | `26.x` | 26.1 – 26.2 | `fba-26.1-26.2-<version>.jar` |
-| `main` | 26.3 | `fba-26.3-<version>-all.jar` |
+| `main` | 26.3 | `fba-26.3-<version>.jar` |
 
 Pick the jar that matches your Minecraft version.
 
 ### Downloads
 
-- Stable releases: [GitHub Releases](https://github.com/whaltermc/Flashback-Redroided/releases) (published from `v*` tags).
+- Stable releases: [GitHub Releases](https://github.com/Redroided-Team/Flashback-Redroided/releases) (published from `v*` tags).
 - Dev builds: rolling prereleases `dev-1.21`, `dev-26.x` and `dev-main`, updated on every push.
 
 Both are direct `.jar` downloads — no need to unzip anything.
@@ -69,8 +71,9 @@ Please download Flashback separately and follow its license.
 ### Links
 
 - Website: https://whaltermc.vercel.app
-- Source: https://github.com/whaltermc/Flashback-Redroided
+- Source: https://github.com/Redroided-Team/Flashback-Redroided
 - Flashback: https://modrinth.com/mod/flashback
+- Discord: https://discord.gg/dKgFxHKc7T
 
 ### Issues
 
@@ -97,18 +100,18 @@ The finished jar is in `build/libs/`.
 
 ## License
 
-Flashback Redroided's own code is **All Rights Reserved** — see [LICENSE](https://github.com/whaltermc/Flashback-Redroided/blob/main/LICENSE).
+Flashback Redroided's own code is **All Rights Reserved** — see [LICENSE](https://github.com/Redroided-Team/Flashback-Redroided/blob/main/LICENSE).
 
 Bundled third-party components keep their own licenses (see `NOTICE`):
 
 - [FFmpeg](https://ffmpeg.org) — GPL-3.0-or-later
 - [JavaCpp](https://github.com/bytedeco/javacpp) — Apache-2.0
-- [ImGui-Java](https://github.com/SpaiR/imgui-java) — MIT
+- [ImGui-Java (Redroided-Team fork)](https://github.com/Redroided-Team/imgui-java) — MIT
 
 ## Credits & Dependencies
 [Flashback](https://modrinth.com/mod/flashback), see [LICENSE](https://github.com/Moulberry/Flashback/blob/master/LICENSE.md)
 
-[ImGui-Java](https://github.com/SpaiR/imgui-java), see [LICENSE](https://github.com/SpaiR/imgui-java/blob/main/LICENSE)
+[ImGui-Java (Redroided-Team fork)](https://github.com/Redroided-Team/imgui-java), see [LICENSE](https://github.com/Redroided-Team/imgui-java/blob/main/LICENSE)
 
 [JavaCpp](https://github.com/bytedeco/javacpp), see [LICENSE](https://github.com/bytedeco/javacpp/blob/master/LICENSE.txt)
 

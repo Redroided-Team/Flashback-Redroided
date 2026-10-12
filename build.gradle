@@ -3,6 +3,7 @@ id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 id 'com.gradleup.shadow' version '9.2.2'
 id 'maven-publish'
 id 'com.modrinth.minotaur' version '2.9.0'
+id 'me.hypherionmc.cursegradle' version '2.0.1'
 }
 
 group = project.maven_group
@@ -12,11 +13,28 @@ modrinth {
 token = System.getenv("MODRINTH_TOKEN")
 projectId = project.findProperty("modrinth_id") ?: ""
 versionNumber = project.mod_version
-versionType = "release"
+versionType = project.findProperty("release_channel") ?: "release"
 gameVersions = [project.minecraft_version]
 loaders = ["fabric"]
 changelog = System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
 uploadFile = tasks.named("remapJar")
+}
+
+curseforge {
+apiKey = System.getenv("CURSEFORGE_TOKEN") ?: ""
+options {
+forgeGradleIntegration = false
+fabricIntegration = true
+}
+project {
+id = project.findProperty("curseforge_id") ?: ""
+changelog = System.getenv("CURSEFORGE_CHANGELOG") ?: System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
+changelogType = "markdown"
+releaseType = project.findProperty("release_channel") ?: "release"
+mainArtifact(tasks.named("remapJar")) {
+displayName = "${project.archives_base_name}-${project.minecraft_version}-${project.mod_version}"
+}
+}
 }
 
 base {
@@ -114,6 +132,7 @@ jar {
 shadowJar {
     archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
     archiveVersion.set(project.version.toString())
+    archiveClassifier.set("")
     destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
 
     from(sourceSets.main.output)
@@ -206,4 +225,5 @@ tasks.named("remapJar") {
     dependsOn(shadowJar)
     inputFile.set(shadowJar.archiveFile)
     archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
+    archiveClassifier.set("")
 }

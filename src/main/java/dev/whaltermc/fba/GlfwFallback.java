@@ -33,11 +33,6 @@ import org.lwjgl.glfw.GLFWWindowPosCallbackI;
 import org.lwjgl.glfw.GLFWWindowSizeCallback;
 import org.lwjgl.glfw.GLFWWindowSizeCallbackI;
 import org.lwjgl.system.MemoryUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 // Central GLFW safety net. Every static GLFW call Flashback makes is rewritten
 // to the same-named method here (see ClassPatcher). On launchers with a full
@@ -48,9 +43,6 @@ import java.util.concurrent.ConcurrentHashMap;
 // Cursor and input-mode calls are NOT mirrored here: those stay routed to
 // GlfwWrapper, which applies the mobile cursor logic on top.
 public final class GlfwFallback {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger("flashback_android/glfw");
-    private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
 
     // Zeroed video mode returned when the real query is unavailable. Backed by
     // one never-freed calloc allocation, created lazily so class loading never
@@ -63,9 +55,6 @@ public final class GlfwFallback {
     private GlfwFallback() {}
 
     public static void missing(String function, Throwable cause) {
-        if (REPORTED.add(function)) {
-            LOGGER.debug("GLFW unavailable: {} ({})", function, cause.toString());
-        }
     }
 
     // ---- Queries with safe defaults ----

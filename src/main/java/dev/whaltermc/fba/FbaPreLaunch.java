@@ -41,31 +41,25 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
             knotClClass = Class.forName(
                     "net.fabricmc.loader.impl.launch.knot.KnotClassLoader", false, cl);
         } catch (ClassNotFoundException e) {
-            LOGGER.debug("KnotClassLoader not found, skipping class patcher");
             return;
         }
 
         if (!knotClClass.isInstance(cl)) {
-            LOGGER.debug("Unexpected class loader ({}), skipping class patcher",
-                    cl.getClass().getName());
             return;
         }
 
         Object delegate = getFieldValueSilent(cl, "delegate");
         if (delegate == null) {
-            LOGGER.debug("KnotClassLoader delegate is null, skipping class patcher");
             return;
         }
 
         Object original = resolveTransformer(delegate);
         if (original == null) {
-            LOGGER.debug("mixinTransformer unavailable, skipping class patcher");
             return;
         }
 
         // Already wrapped (by us or another mod using the same proxy approach) — skip.
         if (Proxy.isProxyClass(original.getClass())) {
-            LOGGER.debug("FBA already initialized, skipping");
             return;
         }
 
@@ -74,7 +68,6 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
             iface = Class.forName(
                     "org.spongepowered.asm.mixin.transformer.IMixinTransformer", false, cl);
         } catch (ClassNotFoundException e) {
-            LOGGER.debug("IMixinTransformer not found, skipping class patcher");
             return;
         }
 
@@ -97,9 +90,8 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
                     try {
                         return ClassPatcher.transform(bytes, isFlashbackClass(name),
                                 !isEngineClass(name));
-                    } catch (Throwable t) {
+                    } catch (Throwable ignored) {
                         // Never kill class loading — return original bytes on any failure.
-                        LOGGER.debug("Class patch skipped for {}: {}", name, t.getMessage());
                         return result;
                     }
                 }

@@ -81,8 +81,7 @@ public class FileDialogMixin {
                     out.write(0);
                 }
                 usable = true;
-            } catch (Throwable t) {
-                LOGGER.debug("Downloads is not writable", t);
+            } catch (Throwable ignored) {
             } finally {
                 if (probe != null) {
                     try {
@@ -109,8 +108,8 @@ public class FileDialogMixin {
                 Minecraft.getInstance().gameDirectory,
                 "flashback/exports"
         );
-        if (!dir.exists() && !dir.mkdirs()) {
-            LOGGER.debug("Could not create export directory: {}", dir.getAbsolutePath());
+        if (!dir.exists()) {
+            dir.mkdirs();
         }
         return dir;
     }
