@@ -31,6 +31,7 @@ id = project.findProperty("curseforge_id") ?: ""
 changelog = System.getenv("CURSEFORGE_CHANGELOG") ?: System.getenv("MODRINTH_CHANGELOG") ?: "See GitHub releases for changelog: https://github.com/Redroided-Team/Flashback-Redroided/releases"
 changelogType = "markdown"
 releaseType = project.findProperty("release_channel") ?: "release"
+addGameVersion project.minecraft_version
 mainArtifact(tasks.named("shadowJar")) {
 displayName = "${project.archives_base_name}-${project.minecraft_version}-${project.mod_version}"
 }
