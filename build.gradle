@@ -32,7 +32,7 @@ changelog = System.getenv("CURSEFORGE_CHANGELOG") ?: System.getenv("MODRINTH_CHA
 changelogType = "markdown"
 releaseType = project.findProperty("release_channel") ?: "release"
 addGameVersion project.minecraft_version
-mainArtifact(tasks.named("shadowJar")) {
+mainArtifact(shadowJar) {
 displayName = "${project.archives_base_name}-${project.minecraft_version}-${project.mod_version}"
 }
 }
