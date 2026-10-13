@@ -2,6 +2,7 @@
   "required": false,
   "package": "com.whaltermc.mixin",
   "compatibilityLevel": "JAVA_25",
+  "plugin": "com.whaltermc.FlashbackMixinPlugin",
   "client": [
     "AsyncFileDialogsMixin",
     "FlashbackFFmpegFrameRecorderMixin",
