@@ -17,7 +17,9 @@ The components below are NOT covered by the mod's own license. They
 remain under their respective licenses, which grant you redistribution
 and other rights independently of this mod's license.
 
-FFmpeg
+FFmpeg (from Maven Central: org.bytedeco:ffmpeg:8.1.2-1.5.14,
+classifier android-arm64-gpl — same FFmpeg 8.1.x the desktop Flashback
+build uses)
   Files:     lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**
   License:   GPL-3.0-or-later (unmodified FFmpeg Android/arm64 shared
              libraries built from the official FFmpeg sources;
