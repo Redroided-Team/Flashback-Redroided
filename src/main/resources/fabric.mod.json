@@ -55,11 +55,5 @@
     "minecraft": ">=26.3",
     "fabric-api": "*",
     "flashback": "*"
-  },
-
-  "custom": {
-    "modmenu": {
-      "parent": "flashback"
-    }
   }
 }
