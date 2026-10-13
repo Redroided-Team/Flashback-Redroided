@@ -13,6 +13,9 @@ import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_NV12;
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P;
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_NONE;
@@ -35,6 +38,11 @@ public abstract class VideoCodecProbeMixin {
     private static final java.util.concurrent.atomic.AtomicBoolean PROBED =
             new java.util.concurrent.atomic.AtomicBoolean();
 
+    // Software encoders already reported unavailable, so the skip is logged
+    // once per encoder instead of on every export-window open.
+    private static final Set<String> SKIPPED =
+            ConcurrentHashMap.newKeySet();
+
     /**
      * Pixel format fallback order for MediaCodec encoder probing.
      * Devices vary: some only accept NV12, others YUV420P, a few prefer NV21.
@@ -55,8 +63,23 @@ public abstract class VideoCodecProbeMixin {
         }
     }
 
-    private static boolean codecSupportsFmt(AVCodec codec, int fmt) {
+    // Launchers report Android via os.version or ANDROID_ROOT; desktops never do.
+    private static boolean flashbackRedroided$isAndroid() {
         try {
+            String version = System.getProperty("os.version", "");
+            if (version != null && version.toLowerCase(java.util.Locale.ROOT).contains("android")) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            return System.getenv("ANDROID_ROOT") != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean codecSupportsFmt(AVCodec codec, int fmt) {        try {
             IntPointer fmts = codec.pix_fmts();
             if (fmts == null || fmts.isNull()) return true; // no static constraint
             for (long i = 0; ; i++) {
@@ -90,6 +113,24 @@ public abstract class VideoCodecProbeMixin {
             Operation<Integer> original
     ) {
         if (!isMediaCodecEncoder(codec)) {
+            // Software encoders are never opened natively on Android: some
+            // (e.g. SVT-AV1) execute instructions missing on budget SoCs and
+            // kill the process with SIGILL, which no catch can survive. Report
+            // them as unavailable instead; MediaCodec encoders below still
+            // probe for real.
+            if (flashbackRedroided$isAndroid()) {
+                String name = "<unknown>";
+                try {
+                    if (codec != null && !codec.isNull() && codec.name() != null) {
+                        name = codec.name().getString();
+                    }
+                } catch (Throwable ignored) {
+                }
+                if (SKIPPED.add(name)) {
+                    LOGGER.info("FBA: skipping software encoder probe on Android: {}", name);
+                }
+                return -22; // EINVAL: unavailable without a native open.
+            }
             return original.call(ctx, codec, options);
         }
 
