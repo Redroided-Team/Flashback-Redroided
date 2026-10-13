@@ -83,10 +83,10 @@ compileOnly "maven.modrinth:4das1Fjq:${flashback_version}"
 // launcher's org.lwjgl.Version (Sodium's gh-2561 check does exactly that).
 compileOnly "org.lwjgl:lwjgl-sdl:3.4.1"
 
-shadow files("ffmpeg/javacpp.jar")
-shadow files("ffmpeg/javacpp-android-arm64.jar")
-shadow files("ffmpeg/ffmpeg.jar")
-shadow files("ffmpeg/ffmpeg-android-arm64-gpl.jar")
+shadow "org.bytedeco:ffmpeg:8.1.2-1.5.14"
+shadow "org.bytedeco:ffmpeg:8.1.2-1.5.14:android-arm64-gpl"
+shadow "org.bytedeco:javacpp:1.5.14"
+shadow "org.bytedeco:javacpp:1.5.14:android-arm64"
 
 shadow files("deps/imgui-binding-1.90.0.jar")
 shadow files("deps/imgui-java-natives-android.jar")
