@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 // FBA: native SDL file dialogs (SDL_ShowSave/Open/FolderDialog; NFD/tinyfd unused).
 // Callbacks are retained until they fire; unanswered dialogs settle via timeout fallback.
 // A null file list with an SDL error falls back, a clean null stays a cancel.
-@Mixin(targets = "com.moulberry.flashback.utils.AsyncFileDialogs")
+@Mixin(targets = "com.moulberry.flashback.utils.AsyncFileDialogs", remap = false)
 public class FileDialogMixin {
 
     // Must not free pending callbacks: native code may still call them (use-after-free).
@@ -244,7 +244,7 @@ public class FileDialogMixin {
         }
 
         String autoExtension =
-                filters.length == 1 ? filters[0] : null;
+                filters != null && filters.length == 1 ? filters[0] : null;
 
         Flashback.LOGGER.info(
                 "FBA: save dialog requested (name={}, filters={})",

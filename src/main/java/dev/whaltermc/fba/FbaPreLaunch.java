@@ -150,7 +150,14 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
                         && bytes != null
                         && bytes.length > 0) {
 
-                    return ClassPatcher.transform(bytes, isFlashbackClass(name));
+                    try {
+                        return ClassPatcher.transform(bytes, isFlashbackClass(name));
+                    } catch (Throwable t) {
+                        // Our patch must never break class loading: keep the
+                        // mixin-transformed bytes and skip only our rewrite.
+                        LOGGER.error("FBA: class patch failed for {}, using unpatched bytes", name, t);
+                        return bytes;
+                    }
                 }
 
                 return result;
