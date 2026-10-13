@@ -76,9 +76,9 @@ implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
 compileOnly "maven.modrinth:4das1Fjq:${flashback_version}"
 
 // @WrapOperation injections are inert without MixinExtras (neither Fabric
-// Loader nor Flashback ship it). Shadowed like the rest of this branch's
-// dependencies, mirroring 1.21 which bundles it via Jar-in-Jar.
-shadow files("deps/mixinextras-fabric-0.5.5.jar")
+// Loader nor Flashback ship it). Byte-identical to the official release,
+// resolved from Maven Central instead of a checked-in jar.
+shadow "io.github.llamalad7:mixinextras-fabric:0.5.5"
 
 // Compile-only: MC and launchers provide these dialog bindings at runtime.
 // MC 26.2 itself ships lwjgl-tinyfd but not lwjgl-nfd, so NFD is only present
