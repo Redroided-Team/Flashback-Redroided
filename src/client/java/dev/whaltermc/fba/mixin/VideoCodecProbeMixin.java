@@ -4,6 +4,7 @@ package dev.whaltermc.fba.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import dev.whaltermc.fba.AndroidInput;
 import org.bytedeco.ffmpeg.avcodec.AVCodec;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
 import org.bytedeco.ffmpeg.avutil.AVDictionary;
@@ -13,6 +14,9 @@ import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_NV12;
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P;
@@ -25,6 +29,11 @@ import static org.bytedeco.ffmpeg.global.avcodec.avcodec_free_context;
 public abstract class VideoCodecProbeMixin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("flashback_android");
+
+    // Software encoders already reported unavailable, so the skip is logged
+    // once per encoder instead of on every export-window open.
+    private static final Set<String> SKIPPED =
+            ConcurrentHashMap.newKeySet();
 
     /**
      * Pixel format fallback order for MediaCodec probing (device support varies).
@@ -85,6 +94,24 @@ public abstract class VideoCodecProbeMixin {
             Operation<Integer> original
     ) {
         if (!isMediaCodecEncoder(codec)) {
+            // Software encoders are never opened natively on Android: some
+            // (e.g. SVT-AV1) execute instructions missing on budget SoCs and
+            // kill the process with SIGILL, which no catch can survive. Report
+            // them as unavailable instead; MediaCodec encoders below still
+            // probe for real.
+            if (AndroidInput.isMobile()) {
+                String name = "<unknown>";
+                try {
+                    if (codec != null && !codec.isNull() && codec.name() != null) {
+                        name = codec.name().getString();
+                    }
+                } catch (Throwable ignored) {
+                }
+                if (SKIPPED.add(name)) {
+                    LOGGER.info("FBA: skipping software encoder probe on Android: {}", name);
+                }
+                return -22; // EINVAL: unavailable without a native open.
+            }
             return original.call(ctx, codec, options);
         }
 
