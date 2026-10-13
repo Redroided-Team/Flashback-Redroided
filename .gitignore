@@ -17,9 +17,10 @@ Flashback-Redroided-*.zip
 *.class
 
 # NOTE: *.jar is deliberately NOT ignored.
-# deps/ and ffmpeg/ ship jars that build.gradle references via
+# deps/ ships jars that build.gradle references via
 # `shadow files(...)`, so they must stay tracked or a fresh clone
 # cannot build. gradle-wrapper.jar is tracked by convention.
+# (FFmpeg/JavaCPP come from Maven Central, see build.gradle.)
 
 # IDE
 .idea/
