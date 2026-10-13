@@ -447,7 +447,7 @@ public class AsyncFileDialogsMixin {
         cir.setReturnValue(future);
 
         String autoExtension =
-                filters.length == 1 ? filters[0] : null;
+                filters != null && filters.length == 1 ? filters[0] : null;
 
         LOGGER.info(
                 "FBA: save dialog requested (name={}, filters={})",

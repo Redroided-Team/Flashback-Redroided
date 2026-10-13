@@ -83,7 +83,15 @@ public final class FFmpegCompat {
 
             SwrContext ctx = s != null ? s : new SwrContext();
             int ret = swr_alloc_set_opts2(ctx, out, outFmt, outRate, in, inFmt, inRate, logOffset, logCtx);
-            return ret < 0 || ctx.isNull() ? null : ctx;
+            if (ret < 0 || ctx.isNull()) {
+                // Free only what we allocated; a caller-provided context stays
+                // theirs even on failure.
+                if (s == null && ctx != null && !ctx.isNull()) {
+                    ctx.deallocate();
+                }
+                return null;
+            }
+            return ctx;
         } finally {
             av_channel_layout_uninit(out);
             av_channel_layout_uninit(in);

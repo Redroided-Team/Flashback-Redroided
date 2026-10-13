@@ -61,7 +61,8 @@ public abstract class VideoCodecProbeMixin {
         try {
             IntPointer fmts = codec.pix_fmts();
             if (fmts == null || fmts.isNull()) return true; // no static constraint
-            for (long i = 0; ; i++) {
+            // Bounded: an unterminated native list must not read out of bounds.
+            for (long i = 0; i < 64; i++) {
                 int f = fmts.get(i);
                 if (f == AV_PIX_FMT_NONE) break;
                 if (f == fmt) return true;

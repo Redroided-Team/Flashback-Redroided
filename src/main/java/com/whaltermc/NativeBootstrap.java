@@ -61,13 +61,19 @@ public final class NativeBootstrap {
 
             int loaded = 0;
             for (String lib : LIBS) {
-                Path p = dir.resolve(lib);
-                if (!Files.isRegularFile(p)) {
-                    LOGGER.warn("Native missing: {}", p);
-                    continue;
+                try {
+                    Path p = dir.resolve(lib);
+                    if (!Files.isRegularFile(p)) {
+                        LOGGER.warn("Native missing: {}", p);
+                        continue;
+                    }
+                    System.load(p.toAbsolutePath().toString());
+                    loaded++;
+                } catch (Throwable t) {
+                    // One broken lib must not skip the rest (or the ImGui pin
+                    // below): keep loading and report at the end.
+                    LOGGER.warn("FBA: failed to load native, continuing", t);
                 }
-                System.load(p.toAbsolutePath().toString());
-                loaded++;
             }
 
             LOGGER.info("Loaded {} FFmpeg/JavaCPP natives from {} ({})", loaded, dir, source);
