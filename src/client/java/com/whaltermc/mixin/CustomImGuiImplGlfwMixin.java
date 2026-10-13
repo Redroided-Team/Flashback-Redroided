@@ -79,9 +79,8 @@ public abstract class CustomImGuiImplGlfwMixin {
         );
     }
 
-    // Same as 1.21's ImGuiGlfwMixin: behave exactly as Flashback intended,
-    // the mode change goes through the original call. Only record the result
-    // so the rest of the UI reads consistent state.
+    // Records the mode change for consistent UI state; the change itself goes
+    // through the original call, exactly as Flashback intended.
     @WrapOperation(
             method = {
                     "ungrab",
@@ -127,11 +126,8 @@ public abstract class CustomImGuiImplGlfwMixin {
             double y,
             Operation<Void> original
     ) {
-        // Other mods may also redirect cursor pos; only Flashback's own calls are targeted
-        // by the method names above, so this does not affect other mods.
-        //
-        // Forward to real GLFW so Flashback's camera centering and cursor
-        // warps happen as intended instead of being silently suppressed.
+        // Only Flashback's own calls are targeted, so other mods are unaffected.
+        // Forwards to real GLFW so camera centering and cursor warps happen.
         original.call(window, x, y);
     }
 

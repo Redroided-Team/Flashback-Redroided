@@ -172,10 +172,8 @@ public final class MobileCompat {
         if (before == null || before != mode) {
             trace("MODE " + (before == null ? "?" : modeName(before)) + " -> " + modeName(mode));
         }
-        // Always issue the real call: vanilla Minecraft changes the actual
-        // cursor mode behind this map (screen open/close grabs and releases),
-        // so skipping "redundant" writes desyncs the map and the grab that
-        // follows never reaches GLFW. Vanilla calls through every time.
+        // Always issue the real call: vanilla changes the actual mode behind
+        // this map, so skipping "redundant" writes desyncs it.
         noteMode(window, mode);
         CURSOR_MODES.put(window, mode);
         try {

@@ -13,16 +13,11 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Reports the two pixel formats {@code recordImage} compares.
+ * Logs the two pixel formats {@code recordImage} compares (frame vs encoder)
+ * for the first frames of an export.
  *
- * <p>{@code recordImage} throws unless the frame's format equals
- * {@code video_c.pix_fmt()}. Those two values decide whether an export encodes
- * or dies, and every previous diagnosis of that failure was guesswork. This logs
- * them directly for the first few frames of an export.</p>
- *
- * <p>Deliberately in its own mixin class: Mixin treats a failed injection-point
- * validation as fatal for the whole mixin, and one bad annotation here must never
- * be able to disable the encoder fix in {@link FlashbackFFmpegFrameRecorderMixin}.</p>
+ * <p>Kept in its own mixin class so a bad injection here cannot disable the
+ * encoder fix in {@link FlashbackFFmpegFrameRecorderMixin}.</p>
  */
 @Mixin(
         targets = "com.moulberry.flashback.exporting.FlashbackFFmpegFrameRecorder",

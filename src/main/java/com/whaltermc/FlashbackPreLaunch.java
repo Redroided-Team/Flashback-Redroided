@@ -126,12 +126,8 @@ public class FlashbackPreLaunch implements PreLaunchEntrypoint {
                 try {
                     result = method.invoke(target, args);
                 } catch (Throwable t) {
-                    // Everything downstream of us (mixin, and whatever other
-                    // transformer mods have wrapped around it) runs inside this
-                    // call. One of those failing is not our bug, but letting it
-                    // escape turns a single unreadable class into a hard crash
-                    // of the whole game. Hand the class back untouched instead:
-                    // the game keeps running with that class simply untransformed.
+                    // A failing downstream transformer must not crash the game:
+                    // load the class untransformed instead.
                     LOGGER.error(
                             "Downstream transformer failed for {}, loading it untransformed",
                             name,
@@ -182,14 +178,8 @@ public class FlashbackPreLaunch implements PreLaunchEntrypoint {
         );
     }
 
-    // The imgui.moulberry90 -> imgui.whaltermc90 rename is a plain package
-    // rename, so it has to be applied to every class that mentions the package
-    // or the JVM ends up with mismatched descriptors across the addon boundary.
-    // Addon mods (flashback_studio, fbactors, lattice, ...) are compiled against
-    // imgui.moulberry90 too, so restricting this to com.moulberry.flashback.*
-    // left those classes pointing at a package that no longer exists.
-    // transform() still no-ops for any class that does not match its content,
-    // so this stays cheap. Never touch our own classes.
+    // The imgui rename must cover every class mentioning it, or descriptors
+    // mismatch across the addon boundary. Never touch our own classes.
     private static boolean shouldTransform(String className) {
         if (className == null || className.isEmpty()) {
             return false;
@@ -200,19 +190,15 @@ public class FlashbackPreLaunch implements PreLaunchEntrypoint {
         return !dotted.startsWith("com.whaltermc.");
     }
 
-    // The GLFW guard injects stubs that neutralise failed native calls. That is
-    // right for Flashback and third party addons, which cannot work at all on
-    // Android, but it must never touch Minecraft or the blaze3d platform: those
-    // own the real window and event loop, and stubbing them broke GLFW event
-    // polling with a native SIGSEGV. Keep the guard off game and engine code.
+    // The GLFW guard must never touch game/engine code: those own the real
+    // window, and stubbing them broke event polling with a native SIGSEGV.
     private static boolean isEngineClass(String className) {
         String dotted = className.replace('/', '.');
         return dotted.startsWith("net.minecraft.")
                 || dotted.startsWith("com.mojang.");
     }
 
-    // Only Flashback's own classes get the GLFW/FFmpeg call rewrites; those
-    // redirect calls to our compat stubs and must not be forced onto other mods.
+    // Only Flashback's own classes get the GLFW/FFmpeg call rewrites.
     private static boolean isFlashbackClass(String className) {
         String dotted = className.replace('/', '.');
         return dotted.startsWith("com.moulberry.flashback.");

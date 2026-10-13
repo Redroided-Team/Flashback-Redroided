@@ -7,9 +7,8 @@ import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
-// Same as 1.21's CursorInputMixin: behave exactly as Flashback intended
-// and pass the mode change through the original call. Only record the
-// result so the rest of the UI reads consistent state.
+// Records the mode change for consistent UI state; the change itself goes
+// through the original call, exactly as Flashback intended.
 @Mixin(targets = "com.moulberry.flashback.editor.ui.ReplayUI", remap = false, priority = 1000)
 public abstract class ReplayUIMobileCursorMixin {
 
@@ -41,8 +40,7 @@ public abstract class ReplayUIMobileCursorMixin {
             require = 0
     )
     private static void flashbackRedroided$setCursorPos(long window, double x, double y, Operation<Void> original) {
-        // Forward to real GLFW so camera centering and cursor warps happen
-        // as Flashback intended instead of being silently suppressed.
+        // Forwards to real GLFW so camera centering and cursor warps happen.
         original.call(window, x, y);
     }
 }

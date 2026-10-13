@@ -8,16 +8,9 @@ import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 /**
- * Gates version-conditional mixins so Mixin never attempts to resolve a
- * target class that does not exist on the running game, which would
- * otherwise spam
- * {@code Error loading class ... (ClassNotFoundException)} /
- * {@code @Mixin target ... was not found} warnings on every launch.
- *
- * <p>Currently this only gates {@code TinyFDBootstrapMixin}: its target
- * ({@code com.mojang.blaze3d.platform.NativeLibrariesBootstrap}) only
- * exists on Minecraft 26.2+. On 1.21.x (and 26.1) the class is absent, so
- * the mixin is skipped entirely instead of failing target resolution.
+ * Skips version-conditional mixins whose target class is absent on the
+ * running game, instead of logging missing-target warnings every launch.
+ * Currently gates only {@code TinyFDBootstrapMixin} (26.2+ target).
  */
 public class FlashbackMixinPlugin implements IMixinConfigPlugin {
 
@@ -70,10 +63,8 @@ public class FlashbackMixinPlugin implements IMixinConfigPlugin {
     }
 
     /**
-     * Probes for the bootstrap class without initialising it. The resource
-     * lookup is tried first so no game class gets loaded/verified just to
-     * answer "does this exist"; {@code Class.forName(..., false, ...)} is
-     * only a fallback for launchers with unusual resource visibility.
+     * Probes for the target class without initialising it: resource lookup
+     * first, {@code Class.forName} only as a fallback.
      */
     private static boolean hasTinyFDBootstrap() {
         ClassLoader cl = FlashbackMixinPlugin.class.getClassLoader();

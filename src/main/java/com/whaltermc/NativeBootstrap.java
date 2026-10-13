@@ -20,10 +20,8 @@ public final class NativeBootstrap {
     private static final String RES_DIR = "lib/arm64-v8a/";
 
     private static final String[] LIBS = {
-            // C++ runtime first: the bundled ImGui native links against our
-            // renamed copy (libc++_fba.so, SONAME-bumped so the game JVM's own
-            // libc++ can't shadow it). Pre-loading it makes the later ImGui
-            // dlopen resolve against our copy and succeed.
+            // C++ runtime first, so the ImGui native binds our SONAME-bumped
+            // copy instead of the game runtime's own libc++.
             "libc++_fba.so",
             "libjnijavacpp.so",
             "libavutil.so", "libjniavutil.so",

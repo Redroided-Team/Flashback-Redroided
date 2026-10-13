@@ -15,18 +15,11 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Reports which containers the export window will actually offer.
+ * Logs which containers the export window will offer, and per-container
+ * detail when none qualify (an empty offer list means no encoder opened).
  *
- * <p>{@code StartExportWindow} keeps a container only when
- * {@code getSupportedVideoCodecs} returns something for it, so a device where
- * every encoder fails to open yields an empty list and the Export button has
- * nothing to offer -- it silently does nothing. "Button does nothing" and "no
- * encoder opened" are the same bug from two sides, and this line is what tells
- * them apart.</p>
- *
- * <p>In its own mixin class: Mixin treats a failed injection-point validation
- * as fatal for the whole mixin, and one bad annotation here must never be able
- * to disable anything else.</p>
+ * <p>Kept in its own mixin class so a bad injection here cannot disable
+ * anything else.</p>
  */
 @Mixin(targets = "com.moulberry.flashback.combo_options.VideoContainer", remap = false)
 public abstract class VideoContainerDiagMixin {

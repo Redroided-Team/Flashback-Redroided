@@ -16,10 +16,8 @@ public final class GlfwCompat {
     }
 
     public static void glfwSetInputMode(long window, int mode, int value) {
-        // Same as 1.21's GlfwWrapper: CURSOR changes run the touch state
-        // machine (synthetic holds through button flicker, deferred releases
-        // while held). Calling real GLFW directly here leaves that layer dead
-        // and touch input reaches Flashback raw and flapping.
+        // CURSOR changes run the touch state machine; calling real GLFW here
+        // leaves that layer dead and touch input flapping.
         if (mode == GLFW.GLFW_CURSOR) {
             MobileCompat.requestCursorMode(window, value);
             return;
@@ -98,10 +96,7 @@ public final class GlfwCompat {
             }
         }
         MobileCompat.motion(x[0], y[0]);
-        // Raw like 1.21: the grab-offset compensation made Flashback's own
-        // warps (grab-center, WantSetMousePos, ungrab-restore) read back with
-        // a stale offset, snapping the cursor/camera on every programmatic
-        // move during a drag.
+        // Raw reads: compensated warps read back stale and snap the cursor.
     }
 
     public static void glfwGetCursorPos(long window, DoubleBuffer x, DoubleBuffer y) {
@@ -119,16 +114,13 @@ public final class GlfwCompat {
             }
         }
         MobileCompat.motion(x.get(0), y.get(0));
-        // Raw like 1.21: see above.
+        // Raw reads: see above.
     }
 
     /**
      * Backs the {@code glfwGetMonitorName(long)} shim the transformer installs
-     * into GLFW when that descriptor is missing.
-     *
-     * <p>Some launchers supply an LWJGL build without it, and Minecraft 26.x
-     * reads the display name through it during startup. The name is cosmetic, so
-     * any failure here resolves to an empty string instead of a crash.</p>
+     * into GLFW when that descriptor is missing. The name is cosmetic, so any
+     * failure resolves to an empty string instead of a crash.
      */
     public static String glfwGetMonitorName(long monitor) {
         try {

@@ -32,12 +32,9 @@ public final class FlashbackTransformer {
     private static final String SAFETY = "com/whaltermc/GlfwSafety";
     private static final String COMPAT = "com/whaltermc/GlfwCompat";
 
-    // MC 26.2/26.3's RenderPass.enableScissor rejects a zero-sized rect with
-    // IllegalArgumentException, which escapes as a render-frame crash.
-    // Flashback's ImGui backend drops an empty clip rect with < where it needs
-    // <=, so a fully clipped command reaches that check. The one call site is
-    // routed through ScissorCompat, which clamps. Matched by name rather than
-    // by type so this file stays independent of the Minecraft version.
+    // Routes Flashback's ImGui enableScissor call through ScissorCompat, which
+    // clamps the empty rects MC 26.2/26.3 rejects. Matched by name to stay
+    // version-independent.
     private static final String SCISSOR_CLASS =
             "com/moulberry/flashback/editor/ui/CustomImGuiImplB3D";
     private static final String SCISSOR_OWNER =
@@ -58,17 +55,10 @@ public final class FlashbackTransformer {
             "glfwGetInputMode(JI)I",
             "glfwGetCursorPos(J[D[D)V",
             "glfwGetCursorPos(JLjava/nio/DoubleBuffer;Ljava/nio/DoubleBuffer;)V",
-            // Cursor-pos writes go through GlfwCompat too: on mobile they are
-            // suppressed (MobileCompat.setCursorPos), so Flashback's warps
-            // (grab-center, WantSetMousePos, ungrab-restore) never teleport the
-            // visible cursor on launchers that honor them. Desktop still
-            // forwards. Same as 1.21's GlfwWrapper.
+            // Cursor/mode/shape writes go through GlfwCompat (mobile touch
+            // handling); without this touch input reaches Flashback raw.
             "glfwSetCursorPos(JDD)V",
-            // Mode and shape writes go through GlfwCompat as well, exactly
-            // like 1.21: requestCursorMode runs the touch state machine
-            // (synthetic holds through button flicker, deferred releases),
-            // setCursorShape dedups. Without this the whole layer is dead
-            // code and touch input reaches Flashback raw and flapping.
+            // Mode and shape writes go through GlfwCompat as well, like 1.21.
             "glfwSetInputMode(JII)V",
             "glfwSetCursor(JJ)V"
     );
@@ -104,11 +94,9 @@ public final class FlashbackTransformer {
      * @param classBytes the class being loaded, after mixins have been applied
      * @param flashClass whether the class belongs to Flashback itself. Only
      *                   Flashback's own classes get the FFmpeg call rewrites.
-     * @param allowGlfwGuard whether the GLFW guard may run for this class. The
-     *                   imgui package rename stays global so addons work, but
-     *                   the guard must stay off Minecraft and blaze3d: those
-     *                   drive the real window and event loop, and stubbing
-     *                   their GLFW calls crashed the game natively.
+     * @param allowGlfwGuard whether the GLFW guard may run for this class.
+     *                   It must stay off Minecraft and blaze3d: those own the
+     *                   real window, and stubbing them crashed the game natively.
      */
     public static byte[] transform(byte[] classBytes, boolean flashClass,
                                    boolean allowGlfwGuard) {
@@ -119,12 +107,8 @@ public final class FlashbackTransformer {
         ClassReader probe = new ClassReader(classBytes);
         String probeName = probe.getClassName();
 
-        // LWJGL's own classes never need call-site rewrites. The guard exists to
-        // neutralise failed native calls inside Flashback and addon code, and
-        // rewriting the library's internals buys nothing while perturbing a core
-        // library is pure downside. Some launchers also ship a GLFW whose API
-        // surface is not the one Minecraft was compiled against, so leaving the
-        // library byte-for-byte alone is the safer default.
+        // LWJGL's own classes are never rewritten: the guard targets callers,
+        // and perturbing the library itself is pure downside.
         if (probeName != null && probeName.startsWith("org/lwjgl/")) {
             if (GLFW.equals(probeName)) {
                 return flashbackRedroided$addMonitorNameShim(classBytes, probe);
@@ -132,27 +116,17 @@ public final class FlashbackTransformer {
             return classBytes;
         }
 
-        // The imgui package rename must be applied to EVERY class that mentions it,
-        // not just Flashback's. Third party addons (e.g. flashback_studio) are
-        // compiled against imgui.moulberry90 and pass imgui types across the
-        // addon boundary. Rewriting only the Flashback side would remap a call
-        // site descriptor while the callee in the addon kept the old name,
-        // producing a NoSuchMethodError at link time.
+        // The imgui rename must cover every class mentioning it, or descriptors
+        // mismatch across the addon boundary (NoSuchMethodError at link time).
         boolean hasImGui = contains(classBytes, FROM);
-        // The guard still calls real GLFW first and only converts a failing
-        // call into a neutral default, so it is safe for Flashback and third
-        // party addons (flashback_studio, flashback-keystrokes-bridge,
-        // FlashBackClipper, FlashbackSettings). It is NOT safe for Minecraft
-        // or blaze3d, which own the real window and must reach GLFW directly.
+        // The guard calls real GLFW first and only neutralises failures, so it
+        // is safe for Flashback and addons — but not for Minecraft/blaze3d.
         boolean hasGlfw = allowGlfwGuard && contains(classBytes, GLFW);
-        // FFmpeg signature rewrites stay Flashback only: they substitute a
-        // specific call shape, so forcing them onto unrelated classes that merely
-        // share the javacpp dependency would be riskier than leaving them alone.
+        // FFmpeg rewrites stay Flashback-only: forcing them onto unrelated
+        // classes sharing the javacpp dependency would be riskier.
         boolean hasFfmpeg = flashClass && contains(classBytes, FFMPEG_PKG);
-        // The gizmo click guard matches an addon method name, not a package
-        // marker. Its only real call site (the MouseHandler the addon injects
-        // into) carries no imgui/GLFW/ffmpeg bytes, so without this the gate
-        // below returns the class unchanged and the guard never runs.
+        // The gizmo guard matches by method name: its only call site carries no
+        // imgui/GLFW/ffmpeg bytes, so the gate below would otherwise skip it.
         boolean hasGizmoCall = contains(classBytes, "interceptMouseButton");
         boolean hasScissor = contains(classBytes, "enableScissor");
 
@@ -199,15 +173,10 @@ public final class FlashbackTransformer {
     }
 
     /**
-     * Supplies {@code glfwGetMonitorName(long)} when the loaded GLFW lacks it.
-     *
-     * <p>Minecraft 26.x calls {@code GLFW.glfwGetMonitorName(long):String} from
-     * {@code blaze3d.platform.Monitor}, and a launcher that supplies an LWJGL
-     * build missing that exact descriptor dies with {@code NoSuchMethodError}
-     * before the first window opens. The method only costs a monitor name for
-     * display, so answering with a safe value is strictly better than crashing.
-     * It is only ever added when the descriptor is genuinely absent, so every
-     * healthy LWJGL is left untouched.</p>
+     * Supplies {@code glfwGetMonitorName(long)} when the loaded GLFW lacks it:
+     * MC 26.x calls it from {@code Monitor}, and a launcher LWJGL missing that
+     * descriptor dies before the first window opens. Only added when genuinely
+     * absent, so healthy LWJGL builds are untouched.
      */
     private static byte[] flashbackRedroided$addMonitorNameShim(
             byte[] classBytes, ClassReader reader) {
@@ -234,8 +203,8 @@ public final class FlashbackTransformer {
         reader.accept(new ClassVisitor(Opcodes.ASM9, writer) {
             @Override
             public void visitEnd() {
-                // Straight line, no branches: no StackMapTable is required, so
-                // this stays valid under the non-computing ClassWriter above.
+                // Branch-free body: no StackMapTable needed under the
+                // non-computing ClassWriter above.
                 MethodVisitor mv = super.visitMethod(
                         Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
                         MONITOR_NAME, MONITOR_NAME_DESC, null, null);
@@ -244,9 +213,8 @@ public final class FlashbackTransformer {
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, COMPAT,
                         MONITOR_NAME, MONITOR_NAME_DESC, false);
                 mv.visitInsn(Opcodes.ARETURN);
-                // (J) takes two local slots; maxLocals=1 fails defineClass
-                // with "Arguments can't fit into locals" on exactly the
-                // launchers this shim exists for.
+                // (J) takes two local slots; maxLocals=1 fails defineClass on
+                // exactly the launchers this shim exists for.
                 mv.visitMaxs(2, 2);
                 mv.visitEnd();
                 super.visitEnd();
@@ -256,11 +224,9 @@ public final class FlashbackTransformer {
     }
 
     /**
-     * Rewrites the single {@code RenderPass.enableScissor} call in Flashback's
-     * ImGui draw loop to go through {@link ScissorCompat}. Nothing else in the
-     * class is touched, and because the replacement takes the pass as its first
-     * argument the operand stack at the call site is unchanged -- no frame or
-     * max-stack recomputation is needed.
+     * Routes the single {@code RenderPass.enableScissor} call in Flashback's
+     * ImGui draw loop through {@link ScissorCompat}. The replacement takes the
+     * pass first, so the call-site stack is unchanged (no frame recompute).
      */
     private static final class ScissorGuard extends ClassVisitor {
 
@@ -326,14 +292,11 @@ public final class FlashbackTransformer {
                 @Override
                 public void visitMethodInsn(int opcode, String owner, String mName,
                                             String mDesc, boolean itf) {
-                    // ImGui::IsPopupOpen dereferences GImGui->CurrentWindow, which
-                    // is only valid inside a frame. Addons that probe ImGui from
-                    // input callbacks would otherwise segfault natively, so route
-                    // the call through a guard that answers safely off-frame.
+                    // IsPopupOpen dereferences the current window, valid only
+                    // inside a frame: route off-frame addon probes through a
+                    // guard that answers safely instead of segfaulting.
                     if (opcode == Opcodes.INVOKESTATIC && IMGUI.equals(owner)) {
                         // Anchor the frame window on ImGui's own lifecycle calls.
-                        // Flashback drives these from ReplayUI, so this tracks
-                        // the real frame rather than a backend-specific method.
                         if ("newFrame".equals(mName) && mDesc.equals("()V")) {
                             super.visitMethodInsn(Opcodes.INVOKESTATIC, POPUP_GUARD,
                                     "beginFrame", "()V", false);
@@ -352,17 +315,10 @@ public final class FlashbackTransformer {
                             return;
                         }
                     }
-                    // Flashback Studio's gizmo entry answers mouse input by probing
-                    // ImGui state (isPopupOpen, then getIO()). getIO() has no
-                    // safe off-frame answer, and crashing is not the only cost:
-                    // with no frame there is no editor viewport to hand the
-                    // click to, so declining early also keeps paused/menu input
-                    // from being swallowed by a viewport that isn't showing.
-                    // A plain static-call redirect: same stack shape
-                    // ([info, action] -> boolean), so max_stack and frames are
-                    // untouched. Emitting branches here instead once broke
-                    // class verification ("Operand stack overflow") because the
-                    // writer reuses the original max_stack.
+                    // Flashback Studio's gizmo click probes ImGui state with no
+                    // frame to hand it to: decline early with the same stack
+                    // shape, so verification (original max_stack) still holds.
+                    // (Emitting branches here once broke verification.)
                     if (opcode == Opcodes.INVOKESTATIC
                             && GIZMO_OWNER.equals(owner)
                             && "interceptMouseButton".equals(mName)
@@ -464,8 +420,7 @@ public final class FlashbackTransformer {
                           String superName, String[] interfaces) {
             this.className = name;
             this.isInterface = (access & Opcodes.ACC_INTERFACE) != 0;
-            // Never inject stubs into interfaces, annotations, or our own classes.
-            // This keeps the transformer strictly limited to Flashback impl classes.
+            // Never inject stubs into interfaces, annotations, or our classes.
             this.skip = isInterface
                     || (name != null && name.startsWith("com/whaltermc/"));
             super.visit(version, access, name, signature, superName, interfaces);

@@ -28,9 +28,7 @@ public abstract class CustomImGuiImplB3DMixin {
         int width = args.get(2);
         int height = args.get(3);
 
-        // GLES / MobileGlues drivers error on 0x0 scissor (desktop GL silently
-        // ignores it). Flashback can emit 0-width clips for empty ImGui windows.
-        // Clamp to 1x1 so the driver stays happy; visually identical (1px).
+        // GLES drivers error on 0x0 scissor: clamp to 1x1 (visually identical).
         if (width <= 0 || height <= 0) {
             args.set(2, 1);
             args.set(3, 1);
@@ -38,13 +36,9 @@ public abstract class CustomImGuiImplB3DMixin {
     }
 
     /**
-     * MobileGlues cannot compile Flashback's desktop ImGui shaders:
-     * {@code #version 330} + {@code GL_ARB_separate_shader_objects : require}
-     * fails on GLES. When MobileGlues is detected, redirect to our
-     * GLES-compatible copies ({@code flashback_android:core/imgui_b3d_mobile}).
-     *
-     * <p>require=0 so a Flashback update that renames init() just disables
-     * this fix instead of crashing.
+     * Redirects to GLES-compatible ImGui shaders when MobileGlues is detected
+     * (desktop {@code #version 330} shaders fail on GLES). require=0: inert
+     * if Flashback renames init().
      */
     @Redirect(
             method = "init",

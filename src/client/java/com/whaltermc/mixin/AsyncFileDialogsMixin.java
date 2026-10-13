@@ -27,17 +27,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-// Native dialogs, chained: NFD first, then tinyfd, then a hardcoded path.
-// Flashback's own dialog on this build goes through LWJGL SDL, which has no
-// Android backend and leaves a future parked forever, so it is always
-// replaced. Both native legs here block, so they run on a dialog worker
-// thread. When neither backend exists on the launcher, exports still land in
-// Downloads or the game directory instead of failing. A cancelled native
-// dialog completes with null and never cascades: cancelling must stay a cancel.
+// Native dialogs, chained: NFD, then tinyfd, then a hardcoded path.
+// Flashback's own SDL dialog has no Android backend and parks its future
+// forever, so it is always replaced. Blocking legs run on a dialog worker;
+// a cancelled dialog settles null and never cascades.
 @Mixin(
-        // Verified against the Flashback build that actually ships for MC 26.2
-        // (Flashback-0.43.6-for-MC26.2.jar). The 26.3 build of the same version
-        // moves this class to .utils, so the two must not be treated as alike.
+        // Pinned to the MC 26.2 Flashback build: 26.3 moved this class, so the
+        // two must not be treated as alike.
         targets = "com.moulberry.flashback.exporting.AsyncFileDialogs",
         remap = false,
         priority = 1000
@@ -52,10 +48,8 @@ public class AsyncFileDialogsMixin {
         return worker;
     });
 
-    // Neither NFD nor tinyfd has a display on Android, so a dialog can simply
-    // never return. Without this the CompletableFuture is never settled and the
-    // export does nothing at all, forever, with nothing in the log. Every dialog
-    // gets a deadline that settles it with the fallback instead.
+    // A dialog with no display backend may never return; the deadline below
+    // settles it with the fallback instead of hanging the export forever.
     private static final java.util.concurrent.ScheduledExecutorService DIALOG_TIMEOUT =
             Executors.newSingleThreadScheduledExecutor(task -> {
                 Thread timer = new Thread(task, "FbaDialogTimeout");
@@ -65,10 +59,8 @@ public class AsyncFileDialogsMixin {
 
     private static final long DIALOG_TIMEOUT_SECONDS = 20;
 
-    // Zalith/Pojav set os.version=Android-* and ANDROID_ROOT, but neither NFD
-    // nor tinyfd has a dialog backend there: the native call reports success and
-    // then never returns, so nothing is ever shown. Skipping both makes Export
-    // start immediately instead of after the timeout.
+    // Native dialogs report success on Android but never return, so skip both
+    // legs there and go straight to the fallback.
     private static boolean flashbackRedroided$isAndroid() {
         String version = System.getProperty("os.version", "");
         if (version != null && version.toLowerCase().contains("android")) {
@@ -112,13 +104,8 @@ public class AsyncFileDialogsMixin {
     // Cached probe result; -1 unknown, 1 usable, 0 not.
     private static int downloadsUsable = -1;
 
-    // Shared Downloads is the friendliest destination -- the file shows up in
-    // any file manager and most gallery apps. It is not reliably writable,
-    // though: from Android 10 scoped storage blocks direct writes outside the
-    // app's own directories unless the launcher was granted broad storage
-    // access, and some launchers run the game in a sandbox that cannot reach it
-    // at all. So probe it for real once instead of assuming, and fall back to
-    // the game directory when it is not usable.
+    // Shared Downloads is friendliest when writable, but scoped storage and
+    // launcher sandboxes often block it: probe once, fall back to game dir.
     private static synchronized boolean flashbackRedroided$canUseDownloads() {
         if (downloadsUsable >= 0) {
             return downloadsUsable == 1;
@@ -249,10 +236,7 @@ public class AsyncFileDialogsMixin {
         future.complete(value);
     }
 
-    // Settles the dialog with the fallback once nothing has answered for a
-    // while. Uses settleDialog rather than future.completeOnTimeout so the
-    // dialog slot is released too; a late native result then finds the future
-    // already done and harmlessly does nothing.
+    // Settles via settleDialog so the slot is released; late results are ignored.
     private static void flashbackRedroided$armTimeout(
             CompletableFuture<String> future,
             String kind,
@@ -345,11 +329,9 @@ public class AsyncFileDialogsMixin {
         return path;
     }
 
-    // Shared chain used by all three dialogs, always off-thread: NFD, then
-    // tinyfd, then the hardcoded fallback. Cancelled natives settle null
-    // directly; failures fall through to the next leg. Plain JDK functional
-    // types on purpose: helper types inside a mixin package cannot be
-    // referenced and crash loading with IllegalClassLoadError.
+    // Shared chain for all three dialogs, always off-thread: NFD, tinyfd,
+    // fallback. Cancels settle null; failures fall through. Plain JDK types
+    // only: mixin-package helpers are unloadable elsewhere.
     private static void flashbackRedroided$dialogChain(
             String kind,
             CompletableFuture<String> future,

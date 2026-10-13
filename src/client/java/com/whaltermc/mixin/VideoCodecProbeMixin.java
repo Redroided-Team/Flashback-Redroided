@@ -30,13 +30,12 @@ public abstract class VideoCodecProbeMixin {
             new java.util.concurrent.atomic.AtomicBoolean();
 
     /**
-     * Pixel format fallback order for MediaCodec encoder probing.
-     * Devices vary: some only accept NV12, others YUV420P, a few prefer NV21.
+     * Pixel format fallback order for MediaCodec probing (device support varies).
      */
     private static final int[] MEDIACODEC_PIX_FMT_FALLBACKS = {
-            AV_PIX_FMT_NV12,      // preferred on most modern Snapdragon/Dimensity
-            AV_PIX_FMT_YUV420P,   // widely supported, good Exynos fallback
-            24,                    // AV_PIX_FMT_NV21 — older Qualcomm/MediaTek
+            AV_PIX_FMT_NV12,
+            AV_PIX_FMT_YUV420P,
+            24, // AV_PIX_FMT_NV21
     };
 
     private static boolean isMediaCodecEncoder(AVCodec codec) {
@@ -65,16 +64,9 @@ public abstract class VideoCodecProbeMixin {
     }
 
     /**
-     * Probe MediaCodec encoders with multiple pixel format fallbacks.
-     *
-     * A failed avcodec_open2 can leave the context in a partially-initialised
-     * state. Rather than reusing that dirty context across retries, we allocate
-     * a fresh AVCodecContext for each attempt and copy the minimal fields
-     * Flashback sets (codec_id, codec_type, bit_rate, width, height, time_base).
-     * This keeps behaviour identical to what Flashback would do on a clean probe.
-     *
-     * require=0 so the handler is silently skipped if Flashback ever removes
-     * avcodec_open2 from doesEncoderWork.
+     * Probes MediaCodec encoders with pixel-format fallbacks, forcing the NDK
+     * path. Retries use a fresh context (a failed open dirties the old one).
+     * require=0: inert if Flashback removes avcodec_open2 from doesEncoderWork.
      */
     @WrapOperation(
             method = "doesEncoderWork",
@@ -100,9 +92,7 @@ public abstract class VideoCodecProbeMixin {
         }
 
         if (PROBED.compareAndSet(false, true)) {
-            // Its absence from a log is the real signal: it means this mixin
-            // never applied, so the probe is still running FFmpeg's JNI bridge
-            // and every MediaCodec encoder will be reported as broken.
+            // Logs once that the MediaCodec probe path is active.
             String first = "<unknown>";
             try { first = codec.name().getString(); } catch (Throwable ignored) {}
             LOGGER.info("FBA: probing MediaCodec encoders with ndk_codec=1 (first: {})", first);
@@ -110,11 +100,7 @@ public abstract class VideoCodecProbeMixin {
 
         // Force NDK path for all MediaCodec encoders.
         try {
-            // No !options.isNull() guard: Flashback builds its options with
-            // `new AVDictionary(null)` (address 0). av_dict_set takes
-            // AVDictionary**, so JavaCPP passes &address and a null-address
-            // wrapper is valid -- guarding on isNull() skipped the option
-            // entirely and made the probe fall back to the broken JNI path.
+            // A null-address AVDictionary wrapper is still valid for av_dict_set.
             if (options != null) {
                 av_dict_set(options, "ndk_codec", "1", 0);
             }
@@ -131,15 +117,9 @@ public abstract class VideoCodecProbeMixin {
 
             if (!codecSupportsFmt(codec, fmt)) continue;
 
-            // Set pixel format on the context Flashback already prepared.
-            // On the first attempt we use it directly; on subsequent attempts
-            // we need a fresh context because a failed open may have touched
-            // internal state. We allocate a new one and re-apply the fields
-            // Flashback set before calling us.
-            // NOTE: we must NOT free the old context here. Flashback owns it
-            // and frees it in its own finally block; freeing it here would
-            // double-free on the success path. The superseded contexts leak
-            // (one AVCodecContext per retry, probe runs once per encoder).
+            // Retries get a fresh context with Flashback's fields copied over.
+            // Never free the old one here: Flashback owns it (double-free).
+            // Superseded contexts leak one AVCodecContext per retry.
             if (lastResult < 0 && lastResult != -1) {
                 // Previous attempt failed — get a clean context.
                 AVCodecContext fresh = null;
@@ -181,8 +161,7 @@ public abstract class VideoCodecProbeMixin {
             }
         }
 
-        // A negative result here is why the export window ends up with nothing
-        // to offer, so record it rather than leaving the empty list unexplained.
+        // Logs when no pixel format opened.
         if (lastResult < 0) {
             LOGGER.warn("FBA: probe could not open {} with any of pix_fmt={} (last result {})",
                     codecName, java.util.Arrays.toString(MEDIACODEC_PIX_FMT_FALLBACKS), lastResult);
@@ -192,15 +171,10 @@ public abstract class VideoCodecProbeMixin {
     }
 
     /**
-     * FFmpeg 7 removed avcodec_close; contexts are released with
-     * avcodec_free_context / Pointer.close() instead. doesEncoderWork calls
-     * avcodec_close() in a finally block immediately followed by
-     * codecContext.close(), so replacing the removed call with a no-op is
-     * exactly equivalent (and avoids any double-free risk a free_context
-     * mapping would introduce).
-     *
-     * <p>Plain Redirect (no MixinExtras) + require=0: inert if Flashback
-     * ever migrates this call site.
+     * No-ops the removed {@code avcodec_close} call: {@code doesEncoderWork}
+     * releases the context right after via {@code close()} anyway, so this is
+     * equivalent with no double-free risk. require=0: inert if Flashback
+     * migrates the call site.
      */
     @Redirect(
             method = "doesEncoderWork",

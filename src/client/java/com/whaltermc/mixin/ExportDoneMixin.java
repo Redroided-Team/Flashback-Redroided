@@ -24,16 +24,10 @@ public abstract class ExportDoneMixin {
             LoggerFactory.getLogger("flashback_android/export");
 
     /**
-     * Flashback 0.43.x calls {@code Blaze3D.openPath(Path)} from this window.
-     * That method only exists on newer Minecraft, so on 26.2 the call site
-     * survives to runtime and dies with {@code NoSuchMethodError} the moment a
-     * user presses Open File / Open Folder. A redirect matches on the call site
-     * in the target bytecode, so it removes the call even where the callee does
-     * not exist yet.
-     *
-     * Older Flashback (and the 1.21 build) goes through
-     * {@code Util$OS.openPath(Path)} instead, so both are declared.
-     * require=0 keeps the mixin inert on whichever call is absent.
+     * Redirects the platform open call: on some MC builds the callee does not
+     * exist yet, and matching the call site removes it regardless. Both the
+     * {@code Blaze3D} and {@code Util$OS} spellings are declared; require=0
+     * keeps the mixin inert on whichever call is absent.
      */
     @Redirect(
             method = "renderFinishedExports",
@@ -76,9 +70,9 @@ public abstract class ExportDoneMixin {
     }
 
     /**
-     * The platform opener may land in the launcher cache on mobile, so always
-     * hand the user the real path as well: clipboard + toast + log.
-     * Desktop behavior is untouched.
+     * On mobile the platform opener lands in launcher cache instead of the
+     * export folder, so copy the real path to the clipboard, toast it and
+     * log it. Desktop behavior is untouched.
      */
     private static void flashbackRedroided$handleOpenedPath(Path path) {
         try {

@@ -5,20 +5,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Makes frame-dependent ImGui calls safe when they arrive outside a frame.
+ * Answers frame-dependent ImGui calls safely outside a frame.
  *
- * <p>{@code ImGui::IsPopupOpen} dereferences {@code GImGui->CurrentWindow},
- * which is only valid between {@code NewFrame()} and {@code Render()}. A few
- * addons probe ImGui state from input callbacks instead of from their draw
- * code, so the call can land while no frame is open. In a debug build ImGui
- * would assert; in release it is a null dereference and takes the whole game
- * down with a SIGSEGV inside libimgui.</p>
- *
- * <p>Flashback Studio's actor transform gizmo does exactly this from
- * {@code MouseHandler.onButton}. Rather than touch addon code, every
- * {@code isPopupOpen} call is routed here and answered with "no popup open"
- * whenever no frame is active. Inside a frame the real call is forwarded
- * untouched, so normal behaviour is unchanged.</p>
+ * <p>{@code IsPopupOpen} dereferences the current window, valid only between
+ * {@code NewFrame()} and {@code Render()}. Addons probing it from input
+ * callbacks would segfault natively, so off-frame calls are answered with
+ * "no popup open" while on-frame calls forward untouched.</p>
  */
 public final class ImGuiPopupGuard {
 
@@ -32,9 +24,8 @@ public final class ImGuiPopupGuard {
     private ImGuiPopupGuard() {}
 
     /**
-     * Wraps {@code ImGui.newFrame()}. Routed here by the class transformer so
-     * the frame window is tracked from ImGui's own lifecycle rather than from a
-     * Flashback backend method, which is not called once per frame.
+     * Wraps {@code ImGui.newFrame()} to track the frame window from ImGui's
+     * own lifecycle.
      */
     public static void beginFrame() {
         frameActive = true;
@@ -58,14 +49,9 @@ public final class ImGuiPopupGuard {
     }
 
     /**
-     * Guarded entry for Flashback Studio's gizmo click handler.
-     *
-     * <p>Same stack shape as the original
-     * {@code interceptMouseButton(MouseButtonInfo, int)}, so the transformer
-     * can swap the call one-for-one without touching max_stack or frames.
-     * Off-frame it declines (no viewport is showing, and the real method would
-     * crash inside ImGui natives); on-frame it delegates reflectively so the
-     * addon keeps working untouched.</p>
+     * Guarded entry for Flashback Studio's gizmo click handler. Same stack
+     * shape as the original, so the transformer swaps it one-for-one.
+     * Off-frame it declines; on-frame it delegates to the addon untouched.
      */
     public static boolean interceptGizmoClick(Object info, int action) {
         if (!frameActive) {
@@ -124,7 +110,7 @@ public final class ImGuiPopupGuard {
         return ImGui.isPopupOpen(name, cond);
     }
 
-    /** Log the first few offenders only; these can fire on every mouse event. */
+    /** Logs the first few offenders only; these can fire on every mouse event. */
     private static void flashbackRedroided$note(String name) {
         if (guarded++ < 5) {
             LOGGER.info(
