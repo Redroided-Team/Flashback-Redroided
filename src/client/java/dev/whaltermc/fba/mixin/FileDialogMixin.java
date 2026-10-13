@@ -225,7 +225,7 @@ public class FileDialogMixin {
         if (joined.length() == 0) {
             return null;
         }
-        NFDFilterItem.Buffer item = NFDFilterItem.malloc(1);
+        NFDFilterItem.Buffer item = NFDFilterItem.malloc(1, stack);
         item.get(0)
                 .name(stack.UTF8(filterDescription != null ? filterDescription : ""))
                 .spec(stack.UTF8(joined.toString()));

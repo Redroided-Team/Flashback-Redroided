@@ -8,19 +8,20 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class AndroidInput {
 
     private static final boolean MOBILE = detect();
     private static final boolean MOBILE_GLUES = detectMobileGlues();
-    private static final Map<Long, Integer> CURSOR_MODES = new HashMap<>();
-    private static final Map<Long, Long> CURSOR_SHAPES = new HashMap<>();
+    // Concurrent: touched from client-tick and render/GLFW-callback threads.
+    private static final Map<Long, Integer> CURSOR_MODES = new ConcurrentHashMap<>();
+    private static final Map<Long, Long> CURSOR_SHAPES = new ConcurrentHashMap<>();
 
-    private static final Map<Long, double[]> LAST_POS = new HashMap<>();
-    private static final Map<Long, double[]> GRAB_OFFSET = new HashMap<>();
+    private static final Map<Long, double[]> LAST_POS = new ConcurrentHashMap<>();
+    private static final Map<Long, double[]> GRAB_OFFSET = new ConcurrentHashMap<>();
 
     private static final Logger LOGGER = LoggerFactory.getLogger("flashback_android");
     private static int logBudget = 400;

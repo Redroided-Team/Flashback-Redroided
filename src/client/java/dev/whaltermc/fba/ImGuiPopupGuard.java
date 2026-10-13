@@ -28,8 +28,8 @@ public final class ImGuiPopupGuard {
      * own lifecycle.
      */
     public static void beginFrame() {
-        frameActive = true;
         ImGui.newFrame();
+        frameActive = true;
     }
 
     /**

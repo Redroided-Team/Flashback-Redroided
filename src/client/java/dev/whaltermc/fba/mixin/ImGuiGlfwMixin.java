@@ -9,7 +9,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(
         targets = "com.moulberry.flashback.editor.ui.CustomImGuiImplGlfw",
@@ -25,22 +24,11 @@ public abstract class ImGuiGlfwMixin {
             require = 0
     )
     private void flashbackRedroided$updateKeyModifiers(long window, CallbackInfo ci) {
-        ci.cancel();
-    }
-
-    @Inject(
-            method = "glfwKeyToImGuiKey",
-            at = @At("RETURN"),
-            cancellable = true,
-            remap = false,
-            require = 0
-    )
-    private void flashbackRedroided$updateImGui192KeyValues(
-            int glfwKey,
-            CallbackInfoReturnable<Integer> cir
-    ) {
-        int imguiKey = cir.getReturnValue();
-        cir.setReturnValue(dev.whaltermc.fba.ImGuiKeyMapper.map(imguiKey));
+        // Mobile only: Flashback polls modifiers through GLFW, which misbehaves
+        // on stubbed launchers. Desktop keeps its own handling untouched.
+        if (AndroidInput.isMobile()) {
+            ci.cancel();
+        }
     }
 
     @WrapOperation(
