@@ -3,42 +3,51 @@
 package dev.whaltermc.fba.mixin;
 
 import com.moulberry.flashback.Flashback;
-import dev.whaltermc.fba.NfdCancelled;
+import com.moulberry.flashback.utils.AsyncFileDialogs;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.util.nfd.NFDFilterItem;
-import org.lwjgl.util.nfd.NativeFileDialog;
+import org.lwjgl.sdl.SDLDialog;
+import org.lwjgl.sdl.SDL_DialogFileCallback;
+import org.lwjgl.sdl.SDL_DialogFileFilter;
+import org.lwjgl.sdl.SDLError;
+import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 import java.io.File;
-import java.util.concurrent.Callable;
+import java.nio.ByteBuffer;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
-import java.util.function.Function;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-// Native dialogs, chained: NFD first, then a hardcoded path. SDL's dialog
-// reports success on Android and then never calls back, so it is skipped
-// entirely; NFD either shows a real picker or fails fast into the fallback,
-// and exports land in game_dir/flashback/exports/ instead of failing.
-// A user-cancelled NFD dialog completes with null and never falls through:
-// cancelling must stay a cancel.
+// Native dialogs, SDL-only: MC 26.3 no longer ships lwjgl-tinyfd, and
+// Flashback drives its dialogs through LWJGL's SDL bindings
+// (SDL_ShowSave/Open/FolderDialog), so NFD and tinyfd are gone from this
+// chain entirely. SDL_Show* is async: it returns immediately and settles
+// through a native callback. That callback is retained (see LIVE_CALLBACKS)
+// until it fires, because a garbage-collected closure would crash native
+// code. SDL's dialog reports success on some Android launchers and then
+// never calls back, so every dialog keeps the deadline below: an unanswered
+// dialog settles with the game-dir fallback instead of hanging the export
+// forever. SDL3 cannot reliably distinguish user-cancel from backend
+// failure through this callback (both arrive as a null file list), so a
+// null list with an SDL error falls back to game_dir/flashback/exports/
+// while a clean null stays a cancel.
 @Mixin(targets = "com.moulberry.flashback.utils.AsyncFileDialogs")
 public class FileDialogMixin {
 
-    private static final ExecutorService DIALOG_WORKER = Executors.newSingleThreadExecutor(task -> {
-        Thread worker = new Thread(task, "FbaDialogs");
-        worker.setDaemon(true);
-        return worker;
-    });
+    // A dialog callback that never fires must stay alive anyway: freeing its
+    // closure while native code may still call it is a use-after-free. Hung
+    // dialogs therefore leak one tiny closure instead of risking a crash.
+    private static final Set<SDL_DialogFileCallback> LIVE_CALLBACKS =
+            ConcurrentHashMap.newKeySet();
 
-    // A blocking NFD call with no display backend may never return. Without
-    // this the CompletableFuture is never settled and the export does nothing
-    // at all, forever, with nothing in the log. Every dialog gets a deadline
-    // that settles it with the fallback instead.
-    private static final java.util.concurrent.ScheduledExecutorService DIALOG_TIMEOUT =
+    // An SDL dialog that never answers still has to settle, or the export
+    // does nothing at all, forever, with nothing in the log. Every dialog
+    // gets a deadline that settles it with the fallback instead.
+    private static final ScheduledExecutorService DIALOG_TIMEOUT =
             Executors.newSingleThreadScheduledExecutor(task -> {
                 Thread timer = new Thread(task, "FbaDialogTimeout");
                 timer.setDaemon(true);
@@ -50,8 +59,40 @@ public class FileDialogMixin {
     // One dialog at a time, mirroring vanilla hasDialog.
     private static volatile CompletableFuture<String> ongoingDialog;
 
-    // NFD_Init runs once; a missing native library fails there first.
-    private static volatile boolean nfdReady;
+    // The three native allocations behind one SDL filter item. Freed in the
+    // dialog callback (mirroring Flashback: valid from Show until callback),
+    // or immediately when the Show call itself throws and no callback can
+    // ever arrive. Nested inside the mixin on purpose: nothing outside this
+    // class references it.
+    private static final class SdlFilter {
+        private SDL_DialogFileFilter.Buffer buffer;
+        private ByteBuffer name;
+        private ByteBuffer pattern;
+
+        private void free() {
+            try {
+                if (buffer != null) {
+                    buffer.free();
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (name != null) {
+                    MemoryUtil.memFree(name);
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (pattern != null) {
+                    MemoryUtil.memFree(pattern);
+                }
+            } catch (Throwable ignored) {
+            }
+            buffer = null;
+            name = null;
+            pattern = null;
+        }
+    }
 
     private static File flashbackRedroided$getDefaultExportDir() {
         File dir = new File(
@@ -124,25 +165,9 @@ public class FileDialogMixin {
         }, DIALOG_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    // Loads the NFD natives once; failure surfaces at the dialog call instead.
-    private static void flashbackRedroided$ensureNfd() {
-        if (!nfdReady) {
-            synchronized (FileDialogMixin.class) {
-                if (!nfdReady) {
-                    try {
-                        NativeFileDialog.NFD_Init();
-                    } catch (Throwable ignored) {
-                    }
-                    nfdReady = true;
-                }
-            }
-        }
-    }
-
-    // Single NFD filter item like vanilla: description plus comma-joined raw
-    // filters, or null for no filtering.
-    private static NFDFilterItem.Buffer flashbackRedroided$nfdFilter(
-            MemoryStack stack,
+    // Single SDL filter item, mirroring Flashback: filters joined with ';',
+    // each scrubbed through AsyncFileDialogs.filter like vanilla.
+    private static SdlFilter flashbackRedroided$sdlFilter(
             String filterDescription,
             String[] filters
     ) {
@@ -153,30 +178,46 @@ public class FileDialogMixin {
                     continue;
                 }
                 if (joined.length() > 0) {
-                    joined.append(',');
+                    joined.append(';');
                 }
-                joined.append(entry);
+                joined.append(AsyncFileDialogs.filter(entry));
             }
         }
-        if (joined.length() == 0) {
-            return null;
-        }
-        NFDFilterItem.Buffer item = NFDFilterItem.malloc(1);
-        item.get(0)
-                .name(stack.UTF8(filterDescription != null ? filterDescription : ""))
-                .spec(stack.UTF8(joined.toString()));
-        return item;
+        SdlFilter filter = new SdlFilter();
+        filter.buffer = SDL_DialogFileFilter.calloc(1);
+        filter.name = MemoryUtil.memUTF8(
+                AsyncFileDialogs.filter(filterDescription != null ? filterDescription : ""),
+                true);
+        filter.pattern = MemoryUtil.memUTF8(joined.toString(), true);
+        filter.buffer.get(0).name(filter.name).pattern(filter.pattern);
+        return filter;
     }
 
-    // Reads the picked path out of an NFD result pointer, freeing it after.
-    private static String flashbackRedroided$nfdPath(PointerBuffer outPath) {
+    // SDL has no reliable cancel-vs-error signal (both are a null file
+    // list), so a null list with no SDL error is treated as a user cancel
+    // while a null list with an error falls through to the fallback. If the
+    // error query itself fails, assume failure: exports must land somewhere.
+    private static boolean flashbackRedroided$sdlCancelled() {
         try {
-            return outPath.getStringUTF8(0);
-        } finally {
-            try {
-                NativeFileDialog.NFD_FreePath(outPath.get(0));
-            } catch (Throwable ignored) {
-            }
+            String error = SDLError.SDL_GetError();
+            return error == null || error.isEmpty();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static long flashbackRedroided$sdlWindow() {
+        return Minecraft.getInstance().getWindow().handle();
+    }
+
+    private static void flashbackRedroided$releaseCallback(SDL_DialogFileCallback callback) {
+        if (callback == null) {
+            return;
+        }
+        LIVE_CALLBACKS.remove(callback);
+        try {
+            callback.free();
+        } catch (Throwable ignored) {
         }
     }
 
@@ -186,46 +227,6 @@ public class FileDialogMixin {
             return path + "." + autoExtension;
         }
         return path;
-    }
-
-    // Shared chain used by all three dialogs, always off-thread: NFD, then
-    // the hardcoded fallback. A cancelled NFD dialog settles null directly;
-    // failures fall through to the fallback. Plain JDK functional types on
-    // purpose: helper types inside a mixin package cannot be referenced and
-    // crash loading with IllegalClassLoadError.
-    private static void flashbackRedroided$nfdThenFallback(
-            CompletableFuture<String> future,
-            String kind,
-            Function<String, String> fix,
-            Callable<String> nfd,
-            Callable<String> fallback
-    ) {
-        DIALOG_WORKER.execute(() -> {
-            String value = null;
-            try {
-                value = fix.apply(nfd.call());
-            } catch (NfdCancelled cancelled) {
-                Flashback.LOGGER.info("FBA: {} dialog cancelled by the user", kind);
-                flashbackRedroided$settleDialog(future, null);
-                return;
-            } catch (Throwable t) {
-                Flashback.LOGGER.warn("FBA: NFD {} dialog failed, using the fallback", kind, t);
-            }
-            if (value != null && value.isEmpty()) {
-                value = null;
-            }
-            if (value == null) {
-                try {
-                    value = fallback.call();
-                } catch (Throwable t) {
-                    Flashback.LOGGER.warn("FBA: {} fallback path failed", kind, t);
-                    value = null;
-                }
-            } else {
-                Flashback.LOGGER.info("FBA: NFD {} dialog returned {}", kind, value);
-            }
-            flashbackRedroided$settleDialog(future, value);
-        });
     }
 
     // Hardcoded game-dir export path; exports must land somewhere.
@@ -277,29 +278,57 @@ public class FileDialogMixin {
         flashbackRedroided$armTimeout(future, "save",
                 () -> flashbackRedroided$fallbackExportPath(defaultName, autoExtension));
 
-        flashbackRedroided$nfdThenFallback(
-                future,
-                "save",
-                path -> flashbackRedroided$withExtension(path, autoExtension),
-                () -> {
-                    flashbackRedroided$ensureNfd();
-                    try (var stack = MemoryStack.stackPush()) {
-                        PointerBuffer outPath = stack.callocPointer(1);
-                        int result = NativeFileDialog.NFD_SaveDialog(
-                                outPath,
-                                flashbackRedroided$nfdFilter(stack, filterDescription, filters),
-                                defaultPath != null ? defaultPath : "",
-                                defaultName != null ? defaultName : "export");
-                        if (result == NativeFileDialog.NFD_CANCEL) {
-                            throw new NfdCancelled();
+        SdlFilter filter = null;
+        final SDL_DialogFileCallback[] callback = new SDL_DialogFileCallback[1];
+        try {
+            filter = flashbackRedroided$sdlFilter(filterDescription, filters);
+            final SdlFilter shown = filter;
+            String defaultLocation = AsyncFileDialogs.filter(
+                    (defaultPath != null ? defaultPath : "")
+                            + (defaultName != null ? defaultName : "export"));
+            callback[0] = SDL_DialogFileCallback.create((userdata, filelist, filterIndex) -> {
+                try {
+                    if (filelist == 0L) {
+                        if (flashbackRedroided$sdlCancelled()) {
+                            Flashback.LOGGER.info("FBA: save dialog cancelled by the user");
+                            flashbackRedroided$settleDialog(future, null);
+                        } else {
+                            Flashback.LOGGER.warn("FBA: SDL save dialog failed, using the fallback");
+                            flashbackRedroided$settleDialog(future,
+                                    flashbackRedroided$fallbackExportPath(defaultName, autoExtension));
                         }
-                        if (result != NativeFileDialog.NFD_OKAY) {
-                            return null;
-                        }
-                        return flashbackRedroided$nfdPath(outPath);
+                        return;
                     }
-                },
-                () -> flashbackRedroided$fallbackExportPath(defaultName, autoExtension));
+                    String path = MemoryUtil.memUTF8Safe(MemoryUtil.memGetAddress(filelist));
+                    if (path == null || path.isEmpty()) {
+                        flashbackRedroided$settleDialog(future,
+                                flashbackRedroided$fallbackExportPath(defaultName, autoExtension));
+                    } else {
+                        Flashback.LOGGER.info("FBA: SDL save dialog returned {}", path);
+                        flashbackRedroided$settleDialog(future,
+                                flashbackRedroided$withExtension(path, autoExtension));
+                    }
+                } finally {
+                    shown.free();
+                    flashbackRedroided$releaseCallback(callback[0]);
+                }
+            });
+            LIVE_CALLBACKS.add(callback[0]);
+            SDLDialog.SDL_ShowSaveFileDialog(
+                    callback[0], 0L, flashbackRedroided$sdlWindow(),
+                    filter.buffer, defaultLocation);
+        } catch (Throwable t) {
+            // The Show call itself failed (missing natives/classes): no
+            // callback can ever arrive, so release everything now and fall
+            // back instead of waiting out the timeout.
+            Flashback.LOGGER.warn("FBA: SDL save dialog failed, using the fallback", t);
+            if (filter != null) {
+                filter.free();
+            }
+            flashbackRedroided$releaseCallback(callback[0]);
+            flashbackRedroided$settleDialog(future,
+                    flashbackRedroided$fallbackExportPath(defaultName, autoExtension));
+        }
         return future;
     }
 
@@ -320,28 +349,44 @@ public class FileDialogMixin {
         // Imports have no hardcoded fallback: null means the user gets no file.
         flashbackRedroided$armTimeout(future, "open", () -> null);
 
-        flashbackRedroided$nfdThenFallback(
-                future,
-                "open",
-                path -> path,
-                () -> {
-                    flashbackRedroided$ensureNfd();
-                    try (var stack = MemoryStack.stackPush()) {
-                        PointerBuffer outPath = stack.callocPointer(1);
-                        int result = NativeFileDialog.NFD_OpenDialog(
-                                outPath,
-                                flashbackRedroided$nfdFilter(stack, filterDescription, filters),
-                                defaultPath != null ? defaultPath : "");
-                        if (result == NativeFileDialog.NFD_CANCEL) {
-                            throw new NfdCancelled();
+        SdlFilter filter = null;
+        final SDL_DialogFileCallback[] callback = new SDL_DialogFileCallback[1];
+        try {
+            filter = flashbackRedroided$sdlFilter(filterDescription, filters);
+            final SdlFilter shown = filter;
+            String defaultLocation = AsyncFileDialogs.filter(
+                    defaultPath != null ? defaultPath : "");
+            callback[0] = SDL_DialogFileCallback.create((userdata, filelist, filterIndex) -> {
+                try {
+                    if (filelist == 0L) {
+                        if (flashbackRedroided$sdlCancelled()) {
+                            Flashback.LOGGER.info("FBA: open dialog cancelled by the user");
+                        } else {
+                            Flashback.LOGGER.warn("FBA: SDL open dialog failed");
                         }
-                        if (result != NativeFileDialog.NFD_OKAY) {
-                            return null;
-                        }
-                        return flashbackRedroided$nfdPath(outPath);
+                        flashbackRedroided$settleDialog(future, null);
+                        return;
                     }
-                },
-                () -> null);
+                    String path = MemoryUtil.memUTF8Safe(MemoryUtil.memGetAddress(filelist));
+                    Flashback.LOGGER.info("FBA: SDL open dialog returned {}", path);
+                    flashbackRedroided$settleDialog(future, path);
+                } finally {
+                    shown.free();
+                    flashbackRedroided$releaseCallback(callback[0]);
+                }
+            });
+            LIVE_CALLBACKS.add(callback[0]);
+            SDLDialog.SDL_ShowOpenFileDialog(
+                    callback[0], 0L, flashbackRedroided$sdlWindow(),
+                    filter.buffer, defaultLocation, false);
+        } catch (Throwable t) {
+            Flashback.LOGGER.warn("FBA: SDL open dialog failed", t);
+            if (filter != null) {
+                filter.free();
+            }
+            flashbackRedroided$releaseCallback(callback[0]);
+            flashbackRedroided$settleDialog(future, null);
+        }
         return future;
     }
 
@@ -360,27 +405,45 @@ public class FileDialogMixin {
         flashbackRedroided$armTimeout(future, "folder",
                 FileDialogMixin::flashbackRedroided$fallbackExportFolder);
 
-        flashbackRedroided$nfdThenFallback(
-                future,
-                "folder",
-                path -> path,
-                () -> {
-                    flashbackRedroided$ensureNfd();
-                    try (var stack = MemoryStack.stackPush()) {
-                        PointerBuffer outPath = stack.callocPointer(1);
-                        int result = NativeFileDialog.NFD_PickFolder(
-                                outPath,
-                                defaultPath != null ? defaultPath : "");
-                        if (result == NativeFileDialog.NFD_CANCEL) {
-                            throw new NfdCancelled();
+        final SDL_DialogFileCallback[] callback = new SDL_DialogFileCallback[1];
+        try {
+            String defaultLocation = AsyncFileDialogs.filter(
+                    defaultPath != null ? defaultPath : "");
+            callback[0] = SDL_DialogFileCallback.create((userdata, filelist, filterIndex) -> {
+                try {
+                    if (filelist == 0L) {
+                        if (flashbackRedroided$sdlCancelled()) {
+                            Flashback.LOGGER.info("FBA: folder dialog cancelled by the user");
+                            flashbackRedroided$settleDialog(future, null);
+                        } else {
+                            Flashback.LOGGER.warn("FBA: SDL folder dialog failed, using the fallback");
+                            flashbackRedroided$settleDialog(future,
+                                    flashbackRedroided$fallbackExportFolder());
                         }
-                        if (result != NativeFileDialog.NFD_OKAY) {
-                            return null;
-                        }
-                        return flashbackRedroided$nfdPath(outPath);
+                        return;
                     }
-                },
-                FileDialogMixin::flashbackRedroided$fallbackExportFolder);
+                    String path = MemoryUtil.memUTF8Safe(MemoryUtil.memGetAddress(filelist));
+                    if (path == null || path.isEmpty()) {
+                        flashbackRedroided$settleDialog(future,
+                                flashbackRedroided$fallbackExportFolder());
+                    } else {
+                        Flashback.LOGGER.info("FBA: SDL folder dialog returned {}", path);
+                        flashbackRedroided$settleDialog(future, path);
+                    }
+                } finally {
+                    flashbackRedroided$releaseCallback(callback[0]);
+                }
+            });
+            LIVE_CALLBACKS.add(callback[0]);
+            SDLDialog.SDL_ShowOpenFolderDialog(
+                    callback[0], 0L, flashbackRedroided$sdlWindow(),
+                    defaultLocation, false);
+        } catch (Throwable t) {
+            Flashback.LOGGER.warn("FBA: SDL folder dialog failed, using the fallback", t);
+            flashbackRedroided$releaseCallback(callback[0]);
+            flashbackRedroided$settleDialog(future,
+                    flashbackRedroided$fallbackExportFolder());
+        }
         return future;
     }
 }

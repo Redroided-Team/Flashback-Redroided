@@ -75,22 +75,13 @@ implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
 
 compileOnly "maven.modrinth:4das1Fjq:${flashback_version}"
 
-// On the compile/runtime classpath AND embedded: MC 26.3 no longer ships
-// lwjgl-tinyfd, and the dialog chain must never break startup when it is
-// absent. Natives are deliberately not bundled (upstream has no Android
-// backend); the tinyfd attempt then cascades at call time instead of
-// failing to load. Strictly non-transitive: the artifact's LWJGL core
-// dependency must NOT be embedded, or our jar would shadow the launcher's
-// org.lwjgl.Version and take the blame for its version (Sodium's gh-2561
-// check does exactly that).
-shadow("org.lwjgl:lwjgl-tinyfd:3.4.1") {
-    transitive = false
-}
-
-// Compile-only: the launcher provides this dialog binding at runtime.
-// Referenced only from inside guarded legs, so a launcher without it
-// cascades to the fallback instead of breaking mixin loading.
-compileOnly "org.lwjgl:lwjgl-nfd:3.4.1"
+// Compile-only: MC 26.3 ships the SDL dialog bindings (and Flashback
+// drives its dialogs through them), so the game/launcher provides these
+// classes at runtime. Referenced only from inside guarded legs, so a
+// launcher without them cascades to the fallback instead of breaking
+// mixin loading. Strictly compile-only: embedding LWJGL would shadow the
+// launcher's org.lwjgl.Version (Sodium's gh-2561 check does exactly that).
+compileOnly "org.lwjgl:lwjgl-sdl:3.4.1"
 
 shadow files("ffmpeg/javacpp.jar")
 shadow files("ffmpeg/javacpp-android-arm64.jar")

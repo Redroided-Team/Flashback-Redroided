@@ -9,8 +9,7 @@
     "VideoCodecProbeMixin",
     "VideoContainerDiagMixin",
     "ExportJobMixin",
-    "ExportDoneMixin",
-    "TinyFDBootstrapMixin"
+    "ExportDoneMixin"
   ],
   "injectors": {
     "defaultRequire": 0
