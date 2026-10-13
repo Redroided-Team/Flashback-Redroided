@@ -49,12 +49,6 @@ under a bumped SONAME so the game runtime's own libc++ can't shadow it)
   Homepage:  https://libcxx.llvm.org
   Copyright: The LLVM Project (see https://llvm.org/LICENSE.txt)
 
-LWJGL tinyfd
-  Files:     org/lwjgl/util/tinyfd/** (Java classes only, no natives)
-  License:   BSD-3-Clause, see https://www.lwjgl.org/license
-  Homepage:  https://www.lwjgl.org
-  Copyright: LWJGL contributors
-
 Android system libraries loaded at runtime (libmediandk, libandroid) are
 part of the Android operating system and are not redistributed by this
 mod.

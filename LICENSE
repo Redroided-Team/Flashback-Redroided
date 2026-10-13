@@ -27,7 +27,6 @@ details:
 - FFmpeg (lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**) — GPL-3.0-or-later
 - JavaCPP (org/bytedeco/javacpp/**) — Apache License 2.0
 - imgui-java (io/imgui/java/**) — MIT
-- LWJGL tinyfd (org/lwjgl/util/tinyfd/**, Java classes only) — BSD-3-Clause
 
 The Flashback mod itself is NOT included in this distribution; obtain it
 separately and follow its own license.

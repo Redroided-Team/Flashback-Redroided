@@ -41,10 +41,9 @@ Made for Android launchers such as Mojo/MJLauncher, Amethyst Launcher and Zalith
 Android has no desktop file-dialog support, so exports and imports are handled in layers:
 
 1. The platform (SDL) file dialog, like on desktop.
-2. A tinyfd dialog as backup.
-3. A hardcoded path under `flashback/exports/` in the game directory, so exports never fail silently.
+2. A hardcoded path under `flashback/exports/` in the game directory, so exports never fail silently.
 
-Cancelled dialogs stay cancelled — only a failed dialog falls through to the next layer.
+A cancelled dialog stays cancelled — only a failed dialog falls through to the hardcoded path. If the SDL backend never answers, a timeout settles the dialog with the fallback instead of hanging the export.
 
 ## Issues
 
@@ -85,6 +84,5 @@ Bundled third-party components keep their own licenses (see [NOTICE](NOTICE)):
 - [FFmpeg](https://ffmpeg.org) — GPL-3.0-or-later
 - [JavaCpp](https://github.com/bytedeco/javacpp) — Apache-2.0
 - [ImGui-Java (Redroided-Team fork)](https://github.com/Redroided-Team/imgui-java) — MIT
-- [LWJGL tinyfd](https://www.lwjgl.org) — bundled classes only, no natives
 
 Flashback by [Moulberry](https://modrinth.com/mod/flashback) — download it separately and follow its license.
