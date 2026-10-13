@@ -21,6 +21,10 @@ public final class NativeLoader {
     private static final String MOD_ID = "flashback_android";
     private static final String RES_DIR = "lib/arm64-v8a/";
 
+    // ImGui native inside our own jar (whaltermc90 JNI symbols).
+    private static final String IMGUI_RES = "io/imgui/java/native-bin/libimgui-java64.so";
+    private static final String IMGUI_FILE = "libimgui-java64.so";
+
     private static final String[] LIBS = {
             // C++ runtime first, so the ImGui native binds our SONAME-bumped
             // copy instead of the game runtime's own libc++.
@@ -85,6 +89,8 @@ public final class NativeLoader {
                 LOGGER.info("All {} Android natives loaded from {}", loaded, source);
             }
 
+            pinImGuiNative(mod, dir);
+
         } catch (Throwable t) {
             LOGGER.error("Failed to load Android natives", t);
         }
@@ -122,6 +128,33 @@ public final class NativeLoader {
                     Files.copy(in, dst, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
+        }
+    }
+
+    // Pins imgui-java's loader at our own native: it honors
+    // imgui.library.path/name, and some launchers (Zalith v2 native plugins)
+    // point those at a stock library whose JNI symbols do not match our
+    // renamed imgui.whaltermc90 classes (UnsatisfiedLinkError in
+    // ImGui.<clinit>). Our copy carries the matching symbols, so the binding
+    // always loads the library it was built against. Failures keep the old
+    // behavior (launcher default applies).
+    private static void pinImGuiNative(ModContainer mod, Path dir) {
+        try {
+            Optional<Path> src = mod.findPath(IMGUI_RES);
+            if (src.isEmpty()) {
+                return;
+            }
+            Path dst = dir.resolve(IMGUI_FILE);
+            if (!Files.exists(dst) || Files.size(dst) != Files.size(src.get())) {
+                try (InputStream in = Files.newInputStream(src.get())) {
+                    Files.copy(in, dst, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            System.setProperty("imgui.library.path", dir.toAbsolutePath().toString());
+            System.setProperty("imgui.library.name", IMGUI_FILE);
+            LOGGER.info("FBA: pinned ImGui native to {}", dst);
+        } catch (Throwable t) {
+            LOGGER.warn("FBA: could not pin ImGui native, launcher default applies", t);
         }
     }
 
