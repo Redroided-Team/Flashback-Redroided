@@ -13,13 +13,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Prevents ImGui editor windows from drifting outside the screen on mobile.
- *
- * After every ImGui.begin() call we read the window's current position and
- * size and push it back inside the display area when any part has escaped.
- * The clamp uses ImGuiCond.Always so it takes effect every frame while a
- * window is out-of-bounds, but normal user dragging still works because
- * ImGui only honours setWindowPos(…, Always) once per frame.
+ * Keeps ImGui editor windows on screen: after every {@code begin()}, windows
+ * escaping the display area are pushed back. User dragging still works
+ * (ImGui honours the forced position once per frame).
  */
 @Mixin(
         targets = "imgui.whaltermc90.ImGui",

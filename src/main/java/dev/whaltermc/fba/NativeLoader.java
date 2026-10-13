@@ -22,10 +22,8 @@ public final class NativeLoader {
     private static final String RES_DIR = "lib/arm64-v8a/";
 
     private static final String[] LIBS = {
-            // C++ runtime first: the bundled ImGui native links against our
-            // renamed copy (libc++_fba.so, SONAME-bumped so the game JVM's own
-            // libc++ can't shadow it). Pre-loading it makes the later ImGui
-            // dlopen resolve against our copy and succeed.
+            // C++ runtime first, so the ImGui native binds our SONAME-bumped
+            // copy instead of the game runtime's own libc++.
             "libc++_fba.so",
             "libjnijavacpp.so",
             "libavutil.so", "libjniavutil.so",
@@ -45,17 +43,9 @@ public final class NativeLoader {
         if (done) return;
         done = true;
 
-        // Permanently disable JavaCPP's own native loader on Android — we load
-        // the bionic-built android-arm64 libraries ourselves below.
-        // JavaCPP detects this OS as linux-arm64, so if left enabled its
-        // Loader.load() (triggered e.g. by VideoContainer when the export
-        // screen opens) extracts glibc-linked linux-arm64 .so files from
-        // upstream jars into a cache dir the runtime linker namespace cannot
-        // access ("... is not accessible for the namespace" +
-        // UnsatisfiedLinkError). Loader.isLoadLibraries() reads this property
-        // dynamically on every call, so leaving it set keeps all future
-        // Loader.load() calls as no-ops and every native call resolves
-        // against the preloaded libraries. Do NOT clear it.
+        // Disables JavaCPP's own loader (it would dlopen unusable
+        // linux-arm64 .so files on Android). Never clear this flag.
+        System.setProperty("org.bytedeco.javacpp.loadlibraries", "false");
         System.setProperty("org.bytedeco.javacpp.loadlibraries", "false");
 
         loadSystemLib("mediandk");

@@ -26,11 +26,9 @@ public abstract class ExportDoneMixin {
             LoggerFactory.getLogger("flashback_android/export");
 
     /**
-     * The export-done window opens the entry path through the platform
-     * opener, which has nowhere useful to go on Android launchers (it lands
-     * in launcher cache instead of the selected export folder). On mobile,
-     * copy the real path to the clipboard, toast it and log it instead of
-     * opening the wrong place. Desktop behavior is untouched.
+     * On mobile the platform opener lands in launcher cache instead of the
+     * export folder, so copy the real path to the clipboard, toast it and
+     * log it. Desktop behavior is untouched.
      * require=0: inert if Flashback reworks the window.
      */
     @Redirect(
@@ -45,14 +43,13 @@ public abstract class ExportDoneMixin {
             require = 0
     )
     private static void fba$openExpectedPath(Util.OS os, Path path) {
-        // Always attempt the real open first: on launchers whose platform
-        // handler resolves absolute paths correctly this just works.
+        // Try the real open first: it just works where the platform handler
+        // resolves absolute paths.
         try {
             os.openPath(path);
         } catch (Throwable ignored) {
         }
-        // On mobile the platform opener may land in launcher cache instead,
-        // so additionally hand the user the real path: clipboard + toast + log.
+        // Additionally hand mobile users the real path: clipboard + toast + log.
         try {
             if (AndroidInput.isMobile() && path != null) {
                 String abs;

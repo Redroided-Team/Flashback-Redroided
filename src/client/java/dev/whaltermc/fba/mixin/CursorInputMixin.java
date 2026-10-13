@@ -22,7 +22,7 @@ public abstract class CursorInputMixin {
             require = 0
     )
     private static void flashbackRedroided$setCursorMode(long window, int mode, int value, Operation<Void> original) {
-        // Same as ImGuiGlfwMixin: behave exactly as Flashback intended.
+        // Records the mode change; the change itself goes through untouched.
         original.call(window, mode, value);
         if (mode == org.lwjgl.glfw.GLFW.GLFW_CURSOR) {
             AndroidInput.syncCursorMode(window, value);
@@ -40,7 +40,7 @@ public abstract class CursorInputMixin {
             require = 0
     )
     private static void flashbackRedroided$setCursorPos(long window, double x, double y, Operation<Void> original) {
-        // Forward to real GLFW so the replay editor behaves as intended.
+        // Forwards to real GLFW so camera centering and cursor warps happen.
         original.call(window, x, y);
     }
 }

@@ -11,11 +11,10 @@ import java.nio.ByteBuffer;
 @Mixin(targets = "com.moulberry.flashback.exporting.SaveableFramebuffer", remap = false)
 public abstract class FramebufferMixin {
 
-    // Replaces the pixel-pack download with a fallback chain. Plain glMapBuffer
-    // returns null on several mobile drivers (mapping a busy PBO fails instead
-    // of stalling), which Flashback turns into a crash. The size comes from
-    // the bound buffer itself, so no locals are captured and renames cannot
-    // silently disable the redirect the way @Local captures did before.
+    // Fallback chain for the pixel-pack download: plain glMapBuffer returns
+    // null on several mobile drivers instead of stalling. Sized from the
+    // bound buffer itself, so renames cannot silently disable the redirect.
+
     @Redirect(
             method = "finishDownload",
             at = @At(
@@ -42,8 +41,8 @@ public abstract class FramebufferMixin {
             return mapped;
         }
 
-        // The GPU may still be reading into the PBO; stall until it is done
-        // and retry once before giving up on mapping.
+        // The GPU may still be reading the PBO: stall once and retry mapping.
+
         try {
             GL30C.glFinish();
         } catch (Throwable ignored) {
@@ -53,10 +52,8 @@ public abstract class FramebufferMixin {
             return mapped;
         }
 
-        // Last resort: synchronous read with no mapping involved. GC-managed
-        // direct buffer, so no native leak if the export runs for thousands
-        // of frames. The unmap Flashback issues afterwards is a no-op error
-        // the driver ignores.
+        // Last resort: synchronous read with no mapping. GC-managed buffer, so
+        // no native leak; the driver's follow-up unmap error is ignored.
         try {
             ByteBuffer copy = ByteBuffer.allocateDirect((int) size);
             GL30C.glGetBufferSubData(target, 0, copy);

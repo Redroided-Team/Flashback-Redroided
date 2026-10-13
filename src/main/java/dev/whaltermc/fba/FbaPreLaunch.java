@@ -118,14 +118,8 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
     }
 
     /**
-     * The imgui.moulberry90 -> imgui.whaltermc90 rename is a plain package
-     * rename, so it has to be applied to every class that mentions the package
-     * or the JVM ends up with mismatched descriptors across the addon boundary.
-     * Addon mods (flashback_studio, fbactors, lattice, ...) are compiled against
-     * imgui.moulberry90 too, so restricting this to com.moulberry.flashback.*
-     * left those classes pointing at a package that no longer exists.
-     * ClassPatcher still no-ops for any class that does not match its content,
-     * so this stays cheap. Never touch our own classes.
+     * The imgui rename must cover every class mentioning it, or descriptors
+     * mismatch across the addon boundary. Never touch our own classes.
      */
     private static boolean shouldTransform(String className) {
         if (className == null || className.isEmpty()) return false;
@@ -134,19 +128,14 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
     }
 
     /**
-     * Only Flashback's own classes get the GLFW call rewrites; those redirect
-     * calls to our fallback stubs and must not be forced onto other mods that
-     * happen to share the com.moulberry prefix.
+     * Only Flashback's own classes get the GLFW call rewrites.
      */
     private static boolean isFlashbackClass(String className) {
         return className.replace('/', '.').startsWith("com.moulberry.flashback.");
     }
 
-    // The GLFW guard injects stubs that neutralise failed native calls. That is
-    // right for Flashback and third party addons, which cannot work at all on
-    // Android, but it must never touch Minecraft or the blaze3d platform: those
-    // own the real window and event loop, and stubbing them crashed the game
-    // natively on 26.x.
+    // The GLFW guard must never touch game/engine code: those own the real
+    // window, and stubbing them crashed the game natively.
     private static boolean isEngineClass(String className) {
         String dotted = className.replace('/', '.');
         return dotted.startsWith("net.minecraft.")

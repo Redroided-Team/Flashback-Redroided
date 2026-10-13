@@ -54,10 +54,8 @@ public abstract class ImGuiGlfwMixin {
             require = 0
     )
     private void flashbackRedroided$setGrabCursorMode(long window, int mode, int value, Operation<Void> original) {
-        // Behave exactly as Flashback intended: the mode change goes through.
-        // The mobile request/defer state machine used to swallow these, which
-        // left the cursor in states Flashback never asked for. Only record the
-        // result so the rest of the UI reads consistent state.
+        // Records the mode change; swallowing states Flashback never asked
+        // for left the cursor wrong, so the change goes through untouched.
         original.call(window, mode, value);
         if (mode == org.lwjgl.glfw.GLFW.GLFW_CURSOR) {
             AndroidInput.syncCursorMode(window, value);
@@ -75,7 +73,7 @@ public abstract class ImGuiGlfwMixin {
             require = 0
     )
     private void flashbackRedroided$setCursorModeIfChanged(long window, int mode, int value, Operation<Void> original) {
-        // Same as above: pass through, only record.
+        // Passes through and only records, as above.
         original.call(window, mode, value);
         if (mode == org.lwjgl.glfw.GLFW.GLFW_CURSOR) {
             AndroidInput.syncCursorMode(window, value);
@@ -93,8 +91,7 @@ public abstract class ImGuiGlfwMixin {
             require = 0
     )
     private void flashbackRedroided$setCursorPos(long window, double x, double y, Operation<Void> original) {
-        // Forward to real GLFW so camera centering and cursor warps happen as
-        // Flashback intended instead of being silently suppressed on mobile.
+        // Forwards to real GLFW so camera centering and cursor warps happen.
         original.call(window, x, y);
     }
 

@@ -45,11 +45,9 @@ public final class ClassPatcher {
      * @param classBytes the class being loaded, after mixins have been applied
      * @param flashClass whether the class belongs to Flashback itself. Only
      *                   Flashback's own classes get the FFmpeg call rewrites.
-     * @param allowGlfwGuard whether the GLFW guard may run for this class. The
-     *                   imgui package rename stays global so addons work, but
-     *                   the guard must stay off Minecraft and blaze3d: those
-     *                   drive the real window and event loop, and stubbing
-     *                   their GLFW calls crashed the game natively on 26.x.
+     * @param allowGlfwGuard whether the GLFW guard may run for this class.
+     *                   It must stay off Minecraft and blaze3d: those own the
+     *                   real window, and stubbing them crashed the game natively.
      */
     public static byte[] transform(byte[] classBytes, boolean flashClass,
                                    boolean allowGlfwGuard) {
@@ -57,22 +55,14 @@ public final class ClassPatcher {
             return classBytes;
         }
 
-        // The imgui package rename must be applied to EVERY class that mentions
-        // it, not just Flashback's. Third party addons (e.g. flashback_studio)
-        // are compiled against imgui.moulberry90 and pass imgui types across the
-        // addon boundary. Rewriting only the Flashback side would remap a call
-        // site descriptor while the callee in the addon kept the old name,
-        // producing a NoSuchMethodError at link time.
+        // The imgui rename must cover every class mentioning it, or descriptors
+        // mismatch across the addon boundary (NoSuchMethodError at link time).
         boolean hasImGui = contains(classBytes, FROM);
-        // The guard still calls real GLFW first and only converts a failing
-        // call into a neutral default, so it is safe for Flashback and third
-        // party addons. It is NOT safe for Minecraft or blaze3d, which own the
-        // real window and must reach GLFW directly.
+        // The guard calls real GLFW first and only neutralises failures, so it
+        // is safe for Flashback and addons — but not for Minecraft/blaze3d.
         boolean hasGlfw = allowGlfwGuard && contains(classBytes, GLFW);
-        // The gizmo click guard matches an addon method name, not a package
-        // marker. Its only real call site (the MouseHandler the addon injects
-        // into) carries no imgui/GLFW bytes, so without this the gate below
-        // returns the class unchanged and the guard never runs.
+        // The gizmo guard matches by method name: its only call site carries no
+        // imgui/GLFW bytes, so the gate below would otherwise skip it.
         boolean hasGizmoCall = contains(classBytes, "interceptMouseButton");
 
         if (!hasImGui && !hasGlfw && !hasGizmoCall) {
@@ -142,14 +132,11 @@ public final class ClassPatcher {
                 @Override
                 public void visitMethodInsn(int opcode, String owner, String mName,
                                             String mDesc, boolean itf) {
-                    // ImGui::IsPopupOpen dereferences GImGui->CurrentWindow, which
-                    // is only valid inside a frame. Addons that probe ImGui from
-                    // input callbacks would otherwise segfault natively, so route
-                    // the call through a guard that answers safely off-frame.
+                    // IsPopupOpen dereferences the current window, valid only
+                    // inside a frame: route off-frame addon probes through a
+                    // guard that answers safely instead of segfaulting.
                     if (opcode == Opcodes.INVOKESTATIC && IMGUI.equals(owner)) {
                         // Anchor the frame window on ImGui's own lifecycle calls.
-                        // Flashback drives these from ReplayUI, so this tracks
-                        // the real frame rather than a backend-specific method.
                         if ("newFrame".equals(mName) && mDesc.equals("()V")) {
                             super.visitMethodInsn(Opcodes.INVOKESTATIC, POPUP_GUARD,
                                     "beginFrame", "()V", false);
@@ -168,14 +155,12 @@ public final class ClassPatcher {
                             return;
                         }
                     }
-                    // Flashback Studio's gizmo entry answers mouse input by probing
-                    // ImGui state (isPopupOpen, then getIO()). getIO() has no
-                    // safe off-frame answer. A plain static-call redirect: same
-                    // stack shape ([info, action] -> boolean), so max_stack and
-                    // frames are untouched. The descriptor is matched loosely on
-                    // purpose: intermediary-named builds spell the parameter
-                    // type differently, but the owner plus name plus a boolean
-                    // result is distinctive enough.
+                    // Flashback Studio's gizmo click probes ImGui state with no
+                    // frame to hand it to: decline early with the same stack
+                    // shape, so verification still holds. The descriptor is
+                    // matched loosely: intermediary builds spell the parameter
+                    // differently, but owner plus name plus boolean result is
+                    // distinctive enough.
                     if (opcode == Opcodes.INVOKESTATIC
                             && GIZMO_OWNER.equals(owner)
                             && "interceptMouseButton".equals(mName)

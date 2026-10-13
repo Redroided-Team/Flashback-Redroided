@@ -9,11 +9,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-// Pumps the touch state machine once per client tick. Deferred cursor-mode
-// releases and synthetic-hold timeouts used to run only when something
-// queried the cursor position, so a tap with no motion afterward left the
-// grab (and the held button) stuck forever. Ticking unconditionally fixes
-// that; the call itself is a few field reads when idle.
+// Pumps the touch state machine every client tick, so deferred releases and
+// hold timeouts cannot get stuck when nothing queries the cursor.
 @Mixin(Minecraft.class)
 public abstract class ClientTickMixin {
 

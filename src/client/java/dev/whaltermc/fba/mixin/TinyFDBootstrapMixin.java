@@ -9,19 +9,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * Minecraft 26.2+ pre-loads the LWJGL tinyfd native during bootstrap
- * ({@code NativeLibrariesBootstrap.loadTinyFD}). Some Android launchers do
- * not provide tinyfd natives (nor a resolvable library path), so the lookup
- * returns null and the game dies with {@code NullPointerException: Loading
- * library tinyfd} before any mod loads. tinyfd is only used for desktop
- * native file dialogs, which never run on Android, so a failed probe is
- * safely replaced with an empty version string. Desktop behavior is
- * untouched: the real call runs first and its result is used whenever it
- * works. require=0: inert where the bootstrap has no tinyfd step.
- *
- * <p>Version gating lives in {@code dev.whaltermc.fba.FbaMixinPlugin}:
- * on games without {@code NativeLibrariesBootstrap} (1.21.x) this mixin
- * is never applied, so Mixin does not log missing-target warnings.
+ * Guards the tinyfd bootstrap pre-load: launchers without tinyfd natives die
+ * with {@code NullPointerException: Loading library tinyfd}, and desktop file
+ * dialogs never run on Android, so a failed probe becomes an empty version
+ * string. Desktop behavior is untouched. require=0: inert where the bootstrap
+ * has no tinyfd step.
  */
 @Mixin(
         targets = "com.mojang.blaze3d.platform.NativeLibrariesBootstrap",

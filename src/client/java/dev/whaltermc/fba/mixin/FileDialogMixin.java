@@ -27,12 +27,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-// Native dialogs, chained: NFD first, then tinyfd, then a hardcoded path.
-// NFD is what Flashback itself uses here; both native legs block, so they run
-// on a dialog worker thread. When neither backend exists on the launcher,
-// exports still land in Downloads or the game directory instead of failing.
-// A cancelled native dialog completes with null and never cascades:
-// cancelling must stay a cancel.
+// Native dialogs, chained: NFD, tinyfd, hardcoded path. Flashback's own SDL
+// dialog has no Android backend, so it is always replaced; blocking legs run
+// on a dialog worker. Cancels settle null and never cascade.
 @Mixin(
         targets = "com.moulberry.flashback.exporting.AsyncFileDialogs",
         remap = false,
@@ -59,13 +56,8 @@ public class FileDialogMixin {
     // Cached probe result; -1 unknown, 1 usable, 0 not.
     private static int downloadsUsable = -1;
 
-    // Shared Downloads is the friendliest destination -- the file shows up in
-    // any file manager and most gallery apps. It is not reliably writable,
-    // though: from Android 10 scoped storage blocks direct writes outside the
-    // app's own directories unless the launcher was granted broad storage
-    // access, and some launchers run the game in a sandbox that cannot reach it
-    // at all. So probe it for real once instead of assuming, and fall back to
-    // the game directory when it is not usable.
+    // Shared Downloads is friendliest when writable, but scoped storage and
+    // launcher sandboxes often block it: probe once, fall back to game dir.
     private static synchronized boolean flashbackRedroided$canUseDownloads() {
         if (downloadsUsable >= 0) {
             return downloadsUsable == 1;
@@ -260,11 +252,9 @@ public class FileDialogMixin {
         return path;
     }
 
-    // Shared chain used by all three dialogs, always off-thread: NFD, then
-    // tinyfd, then the hardcoded fallback. Cancelled natives settle null
-    // directly; failures fall through to the next leg. Plain JDK functional
-    // types on purpose: helper types inside a mixin package cannot be
-    // referenced and crash loading with IllegalClassLoadError.
+    // Shared chain for all three dialogs, always off-thread: NFD, tinyfd,
+    // fallback. Cancels settle null; failures fall through. Plain JDK types
+    // only: mixin-package helpers are unloadable elsewhere.
     private static void flashbackRedroided$dialogChain(
             CompletableFuture<String> future,
             Function<String, String> fix,

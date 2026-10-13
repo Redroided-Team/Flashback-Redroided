@@ -23,9 +23,8 @@ import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_from_mask;
 import static org.bytedeco.ffmpeg.global.avutil.av_dict_set;
 import static org.bytedeco.ffmpeg.global.swresample.swr_alloc_set_opts2;
 
-// String target (not class literal) so other mods / different JavaCV versions
-// never break at mixin-config time. All handlers are require=0 + WrapOperation
-// so they chain with other mods instead of conflicting like Redirect.
+// String targets + require=0 WrapOperations so other mods and JavaCV
+// versions never break mixin-config time or conflict like Redirect.
 @Mixin(targets = "org.bytedeco.javacv.FFmpegFrameRecorder", remap = false, priority = 1000)
 public abstract class FFmpegRecorderMixin {
 
@@ -85,13 +84,9 @@ public abstract class FFmpegRecorderMixin {
         frame.ch_layout(layout);
     }
 
-    // NOTE: method="*" is intentional. JavaCV 1.5.10 calls the deprecated
-    // channels()/channel_layout() APIs from startUnsafe AND from the audio
-    // encode path (recordSamples/writeSamples/writeFrame). Scoping handlers
-    // to start* only left recordSamples unpatched, crashing audio export with
-    // UnsatisfiedLinkError on FFmpeg 7+ where those natives no longer exist.
-    // "*" covers all current and future call sites; each handler is require=0
-    // so it is skipped if the target invoke disappears.
+    // method="*" is intentional: JavaCV calls these deprecated APIs from both
+    // startup and the audio encode path, and scoping to start* left audio
+    // export crashing. Handlers are require=0, so stale ones are skipped.
     @WrapOperation(method = "*", at = @At(value = "INVOKE", target = "Lorg/bytedeco/ffmpeg/global/avutil;av_get_default_channel_layout(I)J", remap = false), remap = false, require = 0)
     private long flashbackRedroided$defaultChannelLayout(int nbChannels, Operation<Long> original) {
         return defaultMask(nbChannels);
@@ -127,9 +122,8 @@ public abstract class FFmpegRecorderMixin {
         return defaultMask(nb);
     }
 
-    // AVCodecParameters uses the same deprecated layout fields (FFmpeg 6).
-    // startUnsafe reads inpAudioStream.codecpar().channels() when remuxing
-    // audio; without this the same UnsatisfiedLinkError hits on FFmpeg 7+.
+    // AVCodecParameters shares the deprecated layout fields (FFmpeg 6): audio
+    // remuxing reads them too, so the same crash hits without this handler.
     @WrapOperation(method = "*", at = @At(value = "INVOKE", target = "Lorg/bytedeco/ffmpeg/avcodec/AVCodecParameters;channels()I", remap = false), remap = false, require = 0)
     private int flashbackRedroided$paramsChannelsGet(AVCodecParameters params, Operation<Integer> original) {
         if (params == null || params.isNull()) return 0;
@@ -240,12 +234,8 @@ public abstract class FFmpegRecorderMixin {
     }
 
     /**
-     * FFmpeg 7 removed avcodec_close; contexts are released with
-     * avcodec_free_context / Pointer.close() instead. Any remaining
-     * avcodec_close call (e.g. recorder stop paths) would die with
-     * UnsatisfiedLinkError, so replace it with a no-op success. A no-op
-     * (rather than free_context) can never double-free: callers always
-     * release the context themselves afterwards.
+     * No-ops removed {@code avcodec_close} calls: callers release the context
+     * themselves afterwards, so this can never double-free.
      */
     @WrapOperation(method = "*", at = @At(value = "INVOKE", target = "Lorg/bytedeco/ffmpeg/global/avcodec;avcodec_close(Lorg/bytedeco/ffmpeg/avcodec/AVCodecContext;)I", remap = false), remap = false, require = 0)
     private static int flashbackRedroided$closeCodecCompat(AVCodecContext ctx, Operation<Integer> original) {
@@ -253,8 +243,8 @@ public abstract class FFmpegRecorderMixin {
     }
 
     /**
-     * Force NV12 + ndk_codec for Android MediaCodec encoders.
-     * WrapOperation (not Inject+@Local) so Flashback/JavaCV renames never break us.
+     * Forces NV12 + {@code ndk_codec} for Android MediaCodec encoders.
+     * WrapOperation (not Inject+@Local) so renames never break it.
      */
     @WrapOperation(
         method = "startUnsafe",
@@ -276,12 +266,8 @@ public abstract class FFmpegRecorderMixin {
             if (codec != null && codec.name() != null && !codec.isNull()
                     && codec.name().getString().endsWith("_mediacodec")
                     && ctx != null && !ctx.isNull()) {
-                // Do NOT gate this on !options.isNull(). JavaCV's startUnsafe
-                // builds its options with `new AVDictionary(null)`, whose address
-                // is 0, so the guard silently skipped av_dict_set and ndk_codec
-                // was never applied. av_dict_set takes AVDictionary**; JavaCPP
-                // hands it &address, so a null-address wrapper is valid and
-                // av_dict_set allocates and writes the pointer back.
+                // No isNull() gate: a null-address AVDictionary wrapper is still
+                // valid for av_dict_set (it allocates and writes back).
                 if (options != null) {
                     av_dict_set(options, "ndk_codec", "1", 0);
                 }

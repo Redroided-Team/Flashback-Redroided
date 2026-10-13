@@ -14,13 +14,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * On mobile, makes the Flashback editor respect the physical screen dimensions:
- *
- * 1. Enables ImGui docking so windows can snap together.
- * 2. Renders a full-screen transparent dockspace each frame so every editor
- *    window has somewhere to dock instead of floating freely.
- *
- * The actual per-window position clamping is handled by {@link ImGuiWindowMixin}.
+ * Makes the Flashback editor respect mobile screen dimensions: enables ImGui
+ * docking and renders a full-screen transparent dockspace each frame.
+ * Per-window clamping lives in {@link ImGuiWindowMixin}.
  */
 @Mixin(
         targets = "com.moulberry.flashback.editor.ui.ReplayUI",
@@ -31,12 +27,9 @@ public abstract class ReplayUIMixin {
     private static boolean flashbackRedroided$dockingEnabled = false;
 
     /**
-     * Called once per frame right after Flashback starts its ImGui frame.
-     * Must run after ImGui.newFrame(): calling ImGui.begin() earlier fires
-     * the g.WithinFrameScope assertion, which aborts the game on Android
-     * builds with assertions enabled. Running here keeps the dockspace host
-     * window pushed before any other windows, which is the required ImGui
-     * ordering.
+     * Runs once per frame right after Flashback starts its ImGui frame: the
+     * dockspace host must precede all other windows (ImGui ordering), and
+     * starting it before {@code newFrame()} would trip the frame assertion.
      */
     @Inject(
             method = "drawOverlayInternal",

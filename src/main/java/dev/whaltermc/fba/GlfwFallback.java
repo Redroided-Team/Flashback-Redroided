@@ -34,14 +34,10 @@ import org.lwjgl.glfw.GLFWWindowSizeCallback;
 import org.lwjgl.glfw.GLFWWindowSizeCallbackI;
 import org.lwjgl.system.MemoryUtil;
 
-// Central GLFW safety net. Every static GLFW call Flashback makes is rewritten
-// to the same-named method here (see ClassPatcher). On launchers with a full
-// modern LWJGL3 each wrapper is a straight delegation with no behavior change;
-// on launchers whose GLFW is stubbed or missing functions, the call is caught
-// and a safe default is returned instead of crashing the game.
-//
-// Cursor and input-mode calls are NOT mirrored here: those stay routed to
-// GlfwWrapper, which applies the mobile cursor logic on top.
+// Central GLFW safety net: Flashback's static GLFW calls are rewritten to the
+// same-named methods here. Full LWJGL3 builds delegate straight through;
+// stubbed builds get safe defaults instead of a crash. Cursor/input-mode
+// calls stay routed to GlfwWrapper for the mobile cursor logic.
 public final class GlfwFallback {
 
     // Zeroed video mode returned when the real query is unavailable. Backed by
