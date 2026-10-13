@@ -18,6 +18,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * safely replaced with an empty version string. Desktop behavior is
  * untouched: the real call runs first and its result is used whenever it
  * works. require=0: inert where the bootstrap has no tinyfd step.
+ *
+ * <p>Version gating lives in {@code dev.whaltermc.fba.FbaMixinPlugin}:
+ * on games without {@code NativeLibrariesBootstrap} (1.21.x) this mixin
+ * is never applied, so Mixin does not log missing-target warnings.
  */
 @Mixin(
         targets = "com.mojang.blaze3d.platform.NativeLibrariesBootstrap",

@@ -2,6 +2,7 @@
   "required": false,
   "package": "dev.whaltermc.fba.mixin",
   "compatibilityLevel": "JAVA_21",
+  "plugin": "dev.whaltermc.fba.FbaMixinPlugin",
   "client": [
     "FileDialogMixin",
     "FFmpegRecorderMixin",
