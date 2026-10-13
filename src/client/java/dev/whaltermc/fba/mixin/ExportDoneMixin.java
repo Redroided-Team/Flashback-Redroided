@@ -47,11 +47,9 @@ public abstract class ExportDoneMixin {
     }
 
     /**
-     * The export-done window opens the entry path through the platform
-     * opener, which has nowhere useful to go on Android launchers (it lands
-     * in launcher cache instead of the selected export folder). On mobile,
-     * copy the real path to the clipboard, toast it and log it instead of
-     * opening the wrong place. Desktop behavior is untouched.
+     * On mobile the platform opener lands in launcher cache instead of the
+     * export folder, so copy the real path to the clipboard, toast it and
+     * log it. Desktop behavior is untouched.
      * require=0: inert if Flashback reworks the window.
      */
     @Redirect(

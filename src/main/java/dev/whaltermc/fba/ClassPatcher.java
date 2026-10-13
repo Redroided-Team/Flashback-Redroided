@@ -24,12 +24,9 @@ public final class ClassPatcher {
     private static final String GLFW = "org/lwjgl/glfw/GLFW";
     private static final String SAFETY = "dev/whaltermc/fba/GlfwFallback";
 
-    // MC 26.3 moved RenderPass into renderpearl and made enableScissor reject
-    // a zero-sized rect. Flashback's ImGui backend can produce one (its empty
-    // clip rect test uses < instead of <=), and a single call escapes as a
-    // render-frame crash, so that one call site is routed through
-    // ScissorCompat, which clamps. Matched by name rather than by type so this
-    // file stays independent of which Minecraft version it compiles against.
+    // Routes Flashback's ImGui enableScissor call through ScissorCompat, which
+    // clamps the empty rects MC 26.3 rejects. Matched by name to stay
+    // version-independent.
     private static final String SCISSOR_CLASS =
             "com/moulberry/flashback/editor/ui/CustomImGuiImplB3D";
     private static final String SCISSOR_OWNER =
@@ -51,19 +48,13 @@ public final class ClassPatcher {
             return classBytes;
         }
 
-        // The imgui package rename must be applied to EVERY class that mentions
-        // it, not just Flashback's. Third party addons (e.g. flashback_studio)
-        // are compiled against imgui.moulberry90 and pass imgui types across the
-        // addon boundary. Rewriting only the Flashback side would remap a call
-        // site descriptor while the callee in the addon kept the old name,
-        // producing a NoSuchMethodError at link time.
+        // The imgui rename must cover every class mentioning it: third party
+        // addons pass imgui types across the addon boundary, so rewriting only
+        // the Flashback side would link to names that no longer exist.
         boolean hasImGui = contains(classBytes, FROM);
-        // The GLFW guard is also safe for any class: the stub still calls the
-        // real GLFW first and only converts LinkageError/RuntimeException into a
-        // neutral default, so a working call behaves identically. Addons such as
-        // flashback_studio, flashback-keystrokes-bridge, FlashBackClipper and
-        // FlashbackSettings call GLFW directly and would otherwise hard fail on
-        // Android, where GLFW has no working native.
+        // The GLFW guard is safe for any class: it calls the real GLFW first
+        // and only converts failures into a neutral default, so working calls
+        // behave identically while Android's missing natives stop crashing.
         boolean hasGlfw = contains(classBytes, GLFW);
         boolean hasScissor = contains(classBytes, "enableScissor");
 

@@ -17,23 +17,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.bytedeco.ffmpeg.global.avutil.av_dict_set;
 
 /**
- * Makes Flashback's MediaCodec encoder use the NDK path instead of the JNI one.
+ * Routes Flashback's MediaCodec encoder through {@code AMediaCodec} ({@code ndk_codec=1}).
  *
- * <p>FFmpeg's MediaCodec encoder defaults to bridging through
- * {@code android.media.MediaCodec}. That class is not visible to the Knot/Fabric
- * classloader on Android, so {@code avcodec_open2} dies with
- * {@code NoClassDefFoundError: android/media/MediaCodec} and the export fails
- * before a single frame is recorded. The {@code ndk_codec=1} option switches the
- * encoder to {@code AMediaCodec}, which needs no Java classes at all.</p>
- *
- * <p>Deliberately does <em>not</em> touch {@code video_c.pix_fmt()}. Flashback
- * drives its own pixel-format contract: {@code tryStart} computes a best format
- * (yuv420p), passes it to {@code setPixelFormat}, and the swscale rescale thread
- * converts every frame into exactly that format. Overriding the encoder to NV12
- * desynchronizes the two sides and {@code recordImage} rejects every frame with
- * "Pixel format doesn't match encoder pixel format". Verified on-device:
- * {@code h264_mediacodec} with {@code ndk_codec=1} accepts YUV420P input and
- * encodes it natively.</p>
+ * <p>The JNI bridge needs {@code android.media.MediaCodec}, invisible to the Knot
+ * classloader. Leaves {@code video_c.pix_fmt()} untouched to match Flashback's
+ * rescale contract.</p>
  */
 @Mixin(
         targets = "com.moulberry.flashback.exporting.FlashbackFFmpegFrameRecorder",
@@ -78,11 +66,7 @@ public abstract class FlashbackFFmpegFrameRecorderMixin {
     ) {
         if (flashbackRedroided$isMediaCodec(codec)) {
             try {
-                // Flashback builds its options with `new AVDictionary(null)`, whose
-                // address is 0. That is still valid here: av_dict_set takes
-                // AVDictionary** and JavaCPP passes the object's address, so a null
-                // wrapper is simply an empty dict that av_dict_set allocates and
-                // writes back into the Java object.
+                // A null-address AVDictionary wrapper is still valid for av_dict_set.
                 if (options != null) {
                     av_dict_set(options, "ndk_codec", "1", 0);
                 }

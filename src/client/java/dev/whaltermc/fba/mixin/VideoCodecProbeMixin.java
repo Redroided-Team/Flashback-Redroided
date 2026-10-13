@@ -21,21 +21,11 @@ import static org.bytedeco.ffmpeg.global.avcodec.avcodec_alloc_context3;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_free_context;
 
 /**
- * Probes MediaCodec encoders the way they actually have to be opened on Android.
+ * Probes MediaCodec encoders via {@code AMediaCodec} ({@code ndk_codec=1}).
  *
- * <p>Flashback's own probe asks {@code avcodec_open2} with the JNI bridge's
- * default options. On Android that path needs {@code android.media.MediaCodec},
- * which the Knot classloader cannot see, so every MediaCodec encoder is reported
- * as broken, the export window has nothing to offer, and pressing Export does
- * nothing at all. Setting {@code ndk_codec=1} routes the probe through
- * {@code AMediaCodec} instead, which is the same path the real export uses.</p>
- *
- * <p>Pixel-format fallbacks matter here too: MediaCodec encoders reject formats
- * their codec profile does not accept, so a single-attempt probe is not a fair
- * test. Each retry gets a fresh {@code AVCodecContext} because a failed open can
- * leave the previous one dirty. The old contexts are deliberately leaked —
- * Flashback owns and frees the context it passed in, and freeing it here would
- * double-free on the success path.</p>
+ * <p>The JNI bridge needs {@code android.media.MediaCodec}, invisible to the Knot
+ * classloader. Retries fallback pixel formats with a fresh context per attempt;
+ * never free the incoming context (Flashback owns it).</p>
  */
 @Mixin(targets = "com.moulberry.flashback.combo_options.VideoCodec", remap = false, priority = 1000)
 public abstract class VideoCodecProbeMixin {
@@ -104,20 +94,14 @@ public abstract class VideoCodecProbeMixin {
         }
 
         if (PROBED.compareAndSet(false, true)) {
-            // Its absence from a log is the real signal: it means this mixin
-            // never applied, so the probe is still running FFmpeg's JNI bridge
-            // and every MediaCodec encoder will be reported as broken.
+            // Logs once that the MediaCodec probe path is active.
             String first = "<unknown>";
             try { first = codec.name().getString(); } catch (Throwable ignored) {}
             LOGGER.info("FBA: probing MediaCodec encoders with ndk_codec=1 (first: {})", first);
         }
 
         try {
-            // No !options.isNull() guard: Flashback builds its options with
-            // `new AVDictionary(null)` (address 0). av_dict_set takes
-            // AVDictionary**, so JavaCPP passes &address and a null-address
-            // wrapper is valid -- guarding on isNull() skipped the option
-            // entirely and made the probe fall back to the broken JNI path.
+            // A null-address AVDictionary wrapper is still valid for av_dict_set.
             if (options != null) {
                 av_dict_set(options, "ndk_codec", "1", 0);
             }
@@ -135,10 +119,7 @@ public abstract class VideoCodecProbeMixin {
 
             if (!codecSupportsFmt(codec, fmt)) continue;
 
-            // Flashback owns ctx and frees it in its own finally block. After a
-            // failed open the context is dirty, so retries get a fresh one with
-            // the fields Flashback already set copied over. Never free the old
-            // one here: that would double-free on the success path.
+            // Retries use a fresh context; never free the old one (double-free).
             if (retried) {
                 AVCodecContext fresh = null;
                 try {
@@ -179,8 +160,7 @@ public abstract class VideoCodecProbeMixin {
             }
         }
 
-        // A negative result here is why the export window ends up with nothing
-        // to offer, so record it rather than leaving the empty list unexplained.
+        // Logs when no pixel format opened.
         if (lastResult < 0) {
             LOGGER.warn("FBA: probe could not open {} with any of pix_fmt={} (last result {})",
                     codecName, java.util.Arrays.toString(MEDIACODEC_PIX_FMT_FALLBACKS), lastResult);

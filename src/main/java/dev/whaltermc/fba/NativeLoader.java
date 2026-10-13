@@ -22,10 +22,8 @@ public final class NativeLoader {
     private static final String RES_DIR = "lib/arm64-v8a/";
 
     private static final String[] LIBS = {
-            // C++ runtime first: the bundled ImGui native links against our
-            // renamed copy (libc++_fba.so, SONAME-bumped so the game JVM's own
-            // libc++ can't shadow it). Pre-loading it makes the later ImGui
-            // dlopen resolve against our copy and succeed.
+            // C++ runtime first, so the ImGui native binds our SONAME-bumped
+            // copy instead of the game runtime's own libc++.
             "libc++_fba.so",
             "libjnijavacpp.so",
             "libavutil.so", "libjniavutil.so",
@@ -45,13 +43,8 @@ public final class NativeLoader {
         if (done) return;
         done = true;
 
-        // Permanently disable JavaCPP's own native loader on Android — we load
-        // the bionic-built android-arm64 libraries ourselves below. JavaCPP
-        // detects this OS as linux-arm64 and would otherwise extract +
-        // dlopen unusable .so files from upstream jars (linker namespace
-        // UnsatisfiedLinkError). Loader.isLoadLibraries() reads this property
-        // dynamically, so leaving it set keeps all future Loader.load() calls
-        // as no-ops. Do NOT clear it, not even on failure.
+        // Disables JavaCPP's own loader: it detects Android as linux-arm64 and
+        // would dlopen unusable upstream .so files. Never clear this flag.
         System.setProperty("org.bytedeco.javacpp.loadlibraries", "false");
 
         try {

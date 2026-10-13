@@ -128,12 +128,8 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
                 try {
                     result = method.invoke(target, args);
                 } catch (Throwable t) {
-                    // Everything downstream of us (mixin, and whatever other
-                    // transformer mods have wrapped around it) runs inside this
-                    // call. One of those failing is not our bug, but letting it
-                    // escape turns a single unreadable class into a hard crash
-                    // of the whole game. Hand the class back untouched instead:
-                    // the game keeps running with that class simply untransformed.
+                    // A failing downstream transformer must not crash the game:
+                    // load the class untransformed instead.
                     Throwable cause = t instanceof java.lang.reflect.InvocationTargetException ite
                             && ite.getTargetException() != null
                             ? ite.getTargetException()
@@ -177,14 +173,8 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
         );
     }
 
-    // The imgui.moulberry90 -> imgui.whaltermc90 rename is a plain package
-    // rename, so it has to be applied to every class that mentions the package
-    // or the JVM ends up with mismatched descriptors across the addon boundary.
-    // Addon mods (flashback_studio, fbactors, lattice, ...) are compiled against
-    // imgui.moulberry90 too, so restricting this to com.moulberry.* left those
-    // classes pointing at a package that no longer exists.
-    // ClassPatcher still no-ops for any class that does not match its content,
-    // so this stays cheap. Never touch our own classes.
+    // The imgui rename must cover every class mentioning it, or descriptors
+    // mismatch across the addon boundary. Never touch our own classes.
     private static boolean shouldTransform(String className) {
         if (className == null || className.isEmpty()) {
             return false;
@@ -193,11 +183,8 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
         // Knot names use dots; be tolerant of slashes too.
         String dotted = className.replace('/', '.');
 
-        // LWJGL's own classes never need the imgui rename or the GLFW guard:
-        // they are the library being guarded, not callers of it. Rewriting
-        // them only ever added stub methods to GLFW itself, which is how a
-        // missing LWJGL entry point turned into a NoSuchMethodError for
-        // everybody instead of just for the caller.
+        // LWJGL's own classes are the guarded library, not callers: rewriting
+        // them turned a missing entry point into a NoSuchMethodError for all.
         if (dotted.startsWith("org.lwjgl.")) {
             return false;
         }
@@ -316,8 +303,7 @@ public class FbaPreLaunch implements PreLaunchEntrypoint {
         );
     }
 
-    // Which jar is actually running. Launchers install whatever they last
-    // downloaded, so a log without this is a guess about the build.
+    // Identifies the running build in logs (launchers may install stale jars).
     private static String flashbackRedroided$buildHash() {
         try (java.io.InputStream in = FbaPreLaunch.class.getResourceAsStream(
                 "/fba-build.txt")) {

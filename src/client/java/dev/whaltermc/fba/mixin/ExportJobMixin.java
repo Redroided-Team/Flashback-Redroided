@@ -27,15 +27,11 @@ public abstract class ExportJobMixin {
             LoggerFactory.getLogger("flashback_android/export");
 
     /**
-     * Flashback encodes to a CWD-relative temp file
-     * ({@code replay_export_temp/<uuid>.mp4}) and moves it to the chosen
-     * output afterwards. On launchers the CWD is not the game dir (or lives
-     * on another filesystem), so the final move fails and the video is
-     * stranded in launcher temp. Point the writer directly at the selected
-     * output instead: no temp file, nothing to move, nothing stranded.
-     *
-     * <p>Only relative temp names are touched; absolute paths pass through
-     * unchanged. require=0: inert if Flashback changes writer construction.
+     * Writes the export directly to the selected output instead of a
+     * CWD-relative temp file: on launchers the CWD is not the game dir, so
+     * the final move fails and the video is stranded. Only relative temp
+     * names are touched; absolute paths pass through. require=0: inert if
+     * Flashback changes writer construction.
      */
     @ModifyArgs(
             method = "createVideoWriter",
@@ -74,10 +70,9 @@ public abstract class ExportJobMixin {
     }
 
     /**
-     * Companion to the direct write above: the CWD-relative temp file was
-     * never created, so there is nothing to move. If the output already
-     * exists (the writer wrote it), report success; otherwise rethrow so
-     * Flashback's own error fallback still applies.
+     * Companion to the direct write above: with no temp file there is nothing
+     * to move. If the output already exists, report success; otherwise rethrow
+     * so Flashback's own error fallback still applies.
      */
     @Redirect(
             method = "run",

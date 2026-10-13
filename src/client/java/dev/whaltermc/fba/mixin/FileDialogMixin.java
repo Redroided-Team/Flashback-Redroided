@@ -22,31 +22,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-// Native dialogs, SDL-only: MC 26.3 no longer ships lwjgl-tinyfd, and
-// Flashback drives its dialogs through LWJGL's SDL bindings
-// (SDL_ShowSave/Open/FolderDialog), so NFD and tinyfd are gone from this
-// chain entirely. SDL_Show* is async: it returns immediately and settles
-// through a native callback. That callback is retained (see LIVE_CALLBACKS)
-// until it fires, because a garbage-collected closure would crash native
-// code. SDL's dialog reports success on some Android launchers and then
-// never calls back, so every dialog keeps the deadline below: an unanswered
-// dialog settles with the game-dir fallback instead of hanging the export
-// forever. SDL3 cannot reliably distinguish user-cancel from backend
-// failure through this callback (both arrive as a null file list), so a
-// null list with an SDL error falls back to game_dir/flashback/exports/
-// while a clean null stays a cancel.
+// FBA: native SDL file dialogs (SDL_ShowSave/Open/FolderDialog; NFD/tinyfd unused).
+// Callbacks are retained until they fire; unanswered dialogs settle via timeout fallback.
+// A null file list with an SDL error falls back, a clean null stays a cancel.
 @Mixin(targets = "com.moulberry.flashback.utils.AsyncFileDialogs")
 public class FileDialogMixin {
 
-    // A dialog callback that never fires must stay alive anyway: freeing its
-    // closure while native code may still call it is a use-after-free. Hung
-    // dialogs therefore leak one tiny closure instead of risking a crash.
+    // Must not free pending callbacks: native code may still call them (use-after-free).
     private static final Set<SDL_DialogFileCallback> LIVE_CALLBACKS =
             ConcurrentHashMap.newKeySet();
 
-    // An SDL dialog that never answers still has to settle, or the export
-    // does nothing at all, forever, with nothing in the log. Every dialog
-    // gets a deadline that settles it with the fallback instead.
+    // Timeout settles unanswered dialogs with the fallback.
     private static final ScheduledExecutorService DIALOG_TIMEOUT =
             Executors.newSingleThreadScheduledExecutor(task -> {
                 Thread timer = new Thread(task, "FbaDialogTimeout");
@@ -59,11 +45,7 @@ public class FileDialogMixin {
     // One dialog at a time, mirroring vanilla hasDialog.
     private static volatile CompletableFuture<String> ongoingDialog;
 
-    // The three native allocations behind one SDL filter item. Freed in the
-    // dialog callback (mirroring Flashback: valid from Show until callback),
-    // or immediately when the Show call itself throws and no callback can
-    // ever arrive. Nested inside the mixin on purpose: nothing outside this
-    // class references it.
+    // Native allocations for one SDL filter item; freed in the callback or on Show failure.
     private static final class SdlFilter {
         private SDL_DialogFileFilter.Buffer buffer;
         private ByteBuffer name;
@@ -133,10 +115,7 @@ public class FileDialogMixin {
         future.complete(value);
     }
 
-    // Settles the dialog with the fallback once nothing has answered for a
-    // while. Uses settleDialog rather than future.completeOnTimeout so the
-    // dialog slot is released too; a late native result then finds the future
-    // already done and harmlessly does nothing.
+    // Settles via settleDialog so the slot is released; late results are ignored.
     private static void flashbackRedroided$armTimeout(
             CompletableFuture<String> future,
             String kind,
@@ -165,8 +144,7 @@ public class FileDialogMixin {
         }, DIALOG_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    // Single SDL filter item, mirroring Flashback: filters joined with ';',
-    // each scrubbed through AsyncFileDialogs.filter like vanilla.
+    // Builds one SDL filter item; filters joined with ';' via AsyncFileDialogs.filter.
     private static SdlFilter flashbackRedroided$sdlFilter(
             String filterDescription,
             String[] filters
@@ -193,10 +171,7 @@ public class FileDialogMixin {
         return filter;
     }
 
-    // SDL has no reliable cancel-vs-error signal (both are a null file
-    // list), so a null list with no SDL error is treated as a user cancel
-    // while a null list with an error falls through to the fallback. If the
-    // error query itself fails, assume failure: exports must land somewhere.
+    // Null file list means cancel when SDL reports no error, else fallback.
     private static boolean flashbackRedroided$sdlCancelled() {
         try {
             String error = SDLError.SDL_GetError();
@@ -318,9 +293,7 @@ public class FileDialogMixin {
                     callback[0], 0L, flashbackRedroided$sdlWindow(),
                     filter.buffer, defaultLocation);
         } catch (Throwable t) {
-            // The Show call itself failed (missing natives/classes): no
-            // callback can ever arrive, so release everything now and fall
-            // back instead of waiting out the timeout.
+            // Show failed so no callback arrives: release now and use the fallback.
             Flashback.LOGGER.warn("FBA: SDL save dialog failed, using the fallback", t);
             if (filter != null) {
                 filter.free();
