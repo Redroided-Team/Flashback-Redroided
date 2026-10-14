@@ -27,9 +27,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-// Native dialogs, chained: NFD, tinyfd, hardcoded path. Flashback's own SDL
-// dialog has no Android backend, so it is always replaced; blocking legs run
-// on a dialog worker. Cancels settle null and never cascade.
+// Native dialogs, chained: NFD, tinyfd, hardcoded path. NFD is always
+// attempted first: some launchers (e.g. Copper) bridge it to a working
+// picker. Backends without natives fail fast (probed once, see below); a
+// hung backend still settles via the deadline. Cancels settle null.
 @Mixin(
         targets = "com.moulberry.flashback.exporting.AsyncFileDialogs",
         remap = false,
@@ -47,9 +48,6 @@ public class FileDialogMixin {
 
     // One dialog at a time, mirroring vanilla hasDialog.
     private static volatile CompletableFuture<String> ongoingDialog;
-
-    // NFD_Init runs once; a missing native library fails there first.
-    private static volatile boolean nfdReady;
 
     private static final String DOWNLOADS_PATH = "/storage/emulated/0/Downloads";
 
@@ -188,19 +186,32 @@ public class FileDialogMixin {
         future.complete(value);
     }
 
-    // Loads the NFD natives once; failure surfaces at the dialog call instead.
-    private static void flashbackRedroided$ensureNfd() {
-        if (!nfdReady) {
+    // NFD usability probe: NFD_Init runs once, since missing natives fail
+    // identically on every dialog. NFD is always attempted first: some
+    // launchers (e.g. Copper) bridge it to a working picker.
+    private static volatile boolean nfdProbed;
+    private static volatile boolean nfdUsable;
+
+    // tinyfd usability: cleared on the first native-linkage failure, so later
+    // dialogs skip straight to the fallback. Only linkage failures count, so
+    // a user cancel never disables the backend.
+    private static volatile boolean tinyUsable = true;
+
+    private static boolean flashbackRedroided$ensureNfd() {
+        if (!nfdProbed) {
             synchronized (FileDialogMixin.class) {
-                if (!nfdReady) {
+                if (!nfdProbed) {
                     try {
                         NativeFileDialog.NFD_Init();
+                        nfdUsable = true;
                     } catch (Throwable ignored) {
+                        nfdUsable = false;
                     }
-                    nfdReady = true;
+                    nfdProbed = true;
                 }
             }
         }
+        return nfdUsable;
     }
 
     // Single NFD filter item like vanilla: description plus comma-joined raw
@@ -362,13 +373,15 @@ public class FileDialogMixin {
         cir.setReturnValue(future);
 
         String autoExtension =
-                filters.length == 1 ? filters[0] : null;
+                filters != null && filters.length == 1 ? filters[0] : null;
 
         flashbackRedroided$dialogChain(
                 future,
                 path -> flashbackRedroided$withExtension(path, autoExtension),
                 () -> {
-                    flashbackRedroided$ensureNfd();
+                    if (!flashbackRedroided$ensureNfd()) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         PointerBuffer outPath = stack.callocPointer(1);
                         int result = NativeFileDialog.NFD_SaveDialog(
@@ -386,12 +399,18 @@ public class FileDialogMixin {
                     }
                 },
                 () -> {
+                    if (!tinyUsable) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         return TinyFileDialogs.tinyfd_saveFileDialog(
                                 filterDescription != null ? filterDescription : "Save file",
                                 defaultName != null && !defaultName.isEmpty() ? defaultName : "export",
                                 flashbackRedroided$tinyPatterns(stack, filters),
                                 filterDescription);
+                    } catch (LinkageError | RuntimeException t) {
+                        tinyUsable = false;
+                        throw t;
                     }
                 },
                 () -> flashbackRedroided$fallbackExportPath(defaultName, filters));
@@ -422,7 +441,9 @@ public class FileDialogMixin {
                 future,
                 path -> path,
                 () -> {
-                    flashbackRedroided$ensureNfd();
+                    if (!flashbackRedroided$ensureNfd()) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         PointerBuffer outPath = stack.callocPointer(1);
                         int result = NativeFileDialog.NFD_OpenDialog(
@@ -439,6 +460,9 @@ public class FileDialogMixin {
                     }
                 },
                 () -> {
+                    if (!tinyUsable) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         return TinyFileDialogs.tinyfd_openFileDialog(
                                 filterDescription != null ? filterDescription : "Open file",
@@ -446,6 +470,9 @@ public class FileDialogMixin {
                                 flashbackRedroided$tinyPatterns(stack, filters),
                                 filterDescription,
                                 false);
+                    } catch (LinkageError | RuntimeException t) {
+                        tinyUsable = false;
+                        throw t;
                     }
                 },
                 () -> null);
@@ -473,7 +500,9 @@ public class FileDialogMixin {
                 future,
                 path -> path,
                 () -> {
-                    flashbackRedroided$ensureNfd();
+                    if (!flashbackRedroided$ensureNfd()) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         PointerBuffer outPath = stack.callocPointer(1);
                         int result = NativeFileDialog.NFD_PickFolder(
@@ -488,9 +517,19 @@ public class FileDialogMixin {
                         return flashbackRedroided$nfdPath(outPath);
                     }
                 },
-                () -> TinyFileDialogs.tinyfd_selectFolderDialog(
-                        "Select folder",
-                        defaultPath != null ? defaultPath : ""),
+                () -> {
+                    if (!tinyUsable) {
+                        return null;
+                    }
+                    try {
+                        return TinyFileDialogs.tinyfd_selectFolderDialog(
+                                "Select folder",
+                                defaultPath != null ? defaultPath : "");
+                    } catch (LinkageError | RuntimeException t) {
+                        tinyUsable = false;
+                        throw t;
+                    }
+                },
                 () -> {
                     File exportDir = flashbackRedroided$getExportDir();
                     LOGGER.warn("Using default export folder: {}", exportDir.getAbsolutePath());
