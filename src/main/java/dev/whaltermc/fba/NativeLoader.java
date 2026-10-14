@@ -25,6 +25,27 @@ public final class NativeLoader {
     private static final String IMGUI_RES = "io/imgui/java/native-bin/libimgui-java64.so";
     private static final String IMGUI_FILE = "libimgui-java64.so";
 
+    // Preset classes touched while the natives below load (JavaCPP resolves
+    // struct offsets through them). Warmed up front, single-threaded, so an
+    // unreadable jar entry fails here with a clear name instead of surfacing
+    // mid-load as a confusing ZipException.
+    private static final String[] WARM_CLASSES = {
+            "org.bytedeco.javacpp.Pointer",
+            "org.bytedeco.javacpp.Loader",
+            "org.bytedeco.ffmpeg.avcodec.AVCodec",
+            "org.bytedeco.ffmpeg.avcodec.AVCodecContext",
+            "org.bytedeco.ffmpeg.avutil.AVFrame",
+            "org.bytedeco.ffmpeg.avutil.AVDictionary",
+            "org.bytedeco.ffmpeg.avformat.AVFormatContext",
+            "org.bytedeco.ffmpeg.swresample.SwrContext",
+            "org.bytedeco.ffmpeg.swscale.SwsContext",
+            "org.bytedeco.ffmpeg.presets.avutil",
+            "org.bytedeco.ffmpeg.presets.avcodec",
+            "org.bytedeco.ffmpeg.presets.avformat",
+            "org.bytedeco.ffmpeg.presets.swresample",
+            "org.bytedeco.ffmpeg.presets.swscale",
+    };
+
     private static final String[] LIBS = {
             // C++ runtime first, so the ImGui native binds our SONAME-bumped
             // copy instead of the game runtime's own libc++.
@@ -50,7 +71,8 @@ public final class NativeLoader {
         // Disables JavaCPP's own loader (it would dlopen unusable
         // linux-arm64 .so files on Android). Never clear this flag.
         System.setProperty("org.bytedeco.javacpp.loadlibraries", "false");
-        System.setProperty("org.bytedeco.javacpp.loadlibraries", "false");
+
+        warmupPresetClasses();
 
         loadSystemLib("mediandk");
         loadSystemLib("android");
@@ -100,6 +122,17 @@ public final class NativeLoader {
 
         } catch (Throwable t) {
             LOGGER.error("Failed to load Android natives", t);
+        }
+    }
+
+    private static void warmupPresetClasses() {
+        ClassLoader cl = NativeLoader.class.getClassLoader();
+        for (String name : WARM_CLASSES) {
+            try {
+                Class.forName(name, false, cl);
+            } catch (Throwable t) {
+                LOGGER.warn("FBA: preset class unreadable: {} ({})", name, t.toString());
+            }
         }
     }
 
