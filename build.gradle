@@ -140,7 +140,7 @@ jar {
 
 shadowJar {
     archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
-    archiveVersion.set(project.version.toString())
+    archiveVersion.set("${project.version}+${buildHash}")
     archiveClassifier.set("")
     destinationDirectory.set(layout.buildDirectory.dir("libs"))
 
