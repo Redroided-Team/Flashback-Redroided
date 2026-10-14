@@ -9,7 +9,8 @@
     "VideoCodecProbeMixin",
     "VideoContainerDiagMixin",
     "ExportJobMixin",
-    "ExportDoneMixin"
+    "ExportDoneMixin",
+    "CustomImGuiWindowerSdlMixin"
   ],
   "injectors": {
     "defaultRequire": 0
