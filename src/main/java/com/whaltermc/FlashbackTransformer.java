@@ -63,6 +63,14 @@ public final class FlashbackTransformer {
             "glfwSetCursor(JJ)V"
     );
 
+    // Content-scale answers feed Flashback's UI scale directly: a generated
+    // stub can only hand back zeros there, so these two go through GlfwSafety,
+    // which substitutes the device display density instead (AndroidDisplay).
+    private static final java.util.Set<String> CONTENT_SCALE_CALLS = java.util.Set.of(
+            "glfwGetWindowContentScale(J[F[F)V",
+            "glfwGetMonitorContentScale(J[F[F)V"
+    );
+
     private static final String FFMPEG_PKG = "org/bytedeco/ffmpeg/";
     private static final String FF_COMPAT = "com/whaltermc/FFmpegCompat";
     private static final String CTX = "org/bytedeco/ffmpeg/avcodec/AVCodecContext";
@@ -437,6 +445,12 @@ public final class FlashbackTransformer {
                 public void visitMethodInsn(int opcode, String owner, String mName,
                                             String mDesc, boolean itf) {
                     if (opcode == Opcodes.INVOKESTATIC && GLFW.equals(owner) && !itf) {
+                        // Same descriptor, same stack shape: only the owner
+                        // changes, so no frame recompute is needed.
+                        if (CONTENT_SCALE_CALLS.contains(mName + mDesc)) {
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC, SAFETY, mName, mDesc, false);
+                            return;
+                        }
                         Stub stub = stubs.computeIfAbsent(mName + mDesc,
                                 k -> new Stub(mName, mDesc,
                                         "flashback$redroided$glfw$" + mName + "$" + stubs.size()));
