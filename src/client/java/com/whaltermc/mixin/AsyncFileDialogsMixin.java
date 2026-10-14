@@ -27,10 +27,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-// Native dialogs, chained: NFD, then tinyfd, then a hardcoded path.
-// Flashback's own SDL dialog has no Android backend and parks its future
-// forever, so it is always replaced. Blocking legs run on a dialog worker;
-// a cancelled dialog settles null and never cascades.
+// Native dialogs, chained: NFD, then tinyfd, then a hardcoded path. NFD is
+// always attempted first: some launchers (e.g. Copper) bridge it to a
+// working picker. Backends without natives fail fast (probed once, see
+// below); a hung backend still settles via the deadline. A cancelled dialog
+// settles null and never cascades.
 @Mixin(
         // Pinned to the MC 26.2 Flashback build: 26.3 moved this class, so the
         // two must not be treated as alike.
@@ -59,45 +60,18 @@ public class AsyncFileDialogsMixin {
 
     private static final long DIALOG_TIMEOUT_SECONDS = 20;
 
-    // Native dialogs report success on Android but never return, so skip both
-    // legs there and go straight to the fallback.
-    private static boolean flashbackRedroided$isAndroid() {
-        String version = System.getProperty("os.version", "");
-        if (version != null && version.toLowerCase().contains("android")) {
-            return true;
-        }
-        return System.getenv("ANDROID_ROOT") != null
-                || System.getenv("ZALITH_VERSION_CODE") != null;
-    }
-
-    // Runs the hardcoded fallback off-thread and settles the dialog at once.
-    private static void flashbackRedroided$useFallback(
-            CompletableFuture<String> future,
-            String kind,
-            Callable<String> fallback
-    ) {
-        DIALOG_WORKER.execute(() -> {
-            String value = null;
-            try {
-                value = fallback.call();
-                if (value != null && value.isEmpty()) {
-                    value = null;
-                }
-            } catch (Throwable t) {
-                LOGGER.warn("FBA: {} fallback path failed", kind, t);
-            }
-            if (value != null) {
-                LOGGER.info("FBA: {} -> {}", kind, value);
-            }
-            flashbackRedroided$settleDialog(future, value);
-        });
-    }
-
     // One dialog at a time, mirroring vanilla hasDialog.
     private static volatile CompletableFuture<String> ongoingDialog;
 
-    // NFD_Init runs once; a missing native library fails there first.
-    private static volatile boolean nfdReady;
+    // NFD usability probe: NFD_Init runs once, since missing natives fail
+    // identically on every dialog.
+    private static volatile boolean nfdProbed;
+    private static volatile boolean nfdUsable;
+
+    // tinyfd usability: cleared on the first native-linkage failure, so later
+    // dialogs skip straight to the fallback. Only linkage failures count, so
+    // a user cancel never disables the backend.
+    private static volatile boolean tinyUsable = true;
 
     private static final String DOWNLOADS_PATH = "/storage/emulated/0/Downloads";
 
@@ -265,19 +239,23 @@ public class AsyncFileDialogsMixin {
         }, DIALOG_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
     }
 
-    // Loads the NFD natives once; failure surfaces at the dialog call instead.
-    private static void flashbackRedroided$ensureNfd() {
-        if (!nfdReady) {
+    // Probes NFD usability once; launchers without its natives fail here
+    // instead of on every dialog.
+    private static boolean flashbackRedroided$ensureNfd() {
+        if (!nfdProbed) {
             synchronized (AsyncFileDialogsMixin.class) {
-                if (!nfdReady) {
+                if (!nfdProbed) {
                     try {
                         NativeFileDialog.NFD_Init();
+                        nfdUsable = true;
                     } catch (Throwable ignored) {
+                        nfdUsable = false;
                     }
-                    nfdReady = true;
+                    nfdProbed = true;
                 }
             }
         }
+        return nfdUsable;
     }
 
     // Single NFD filter item like vanilla: description plus comma-joined raw
@@ -302,7 +280,7 @@ public class AsyncFileDialogsMixin {
         if (joined.length() == 0) {
             return null;
         }
-        NFDFilterItem.Buffer item = NFDFilterItem.malloc(1);
+        NFDFilterItem.Buffer item = NFDFilterItem.malloc(1, stack);
         item.get(0)
                 .name(stack.UTF8(filterDescription != null ? filterDescription : ""))
                 .spec(stack.UTF8(joined.toString()));
@@ -456,18 +434,14 @@ public class AsyncFileDialogsMixin {
         flashbackRedroided$armTimeout(future, "save",
                 () -> flashbackRedroided$fallbackExportPath(defaultName, filters));
 
-        if (flashbackRedroided$isAndroid()) {
-            flashbackRedroided$useFallback(future, "save",
-                    () -> flashbackRedroided$fallbackExportPath(defaultName, filters));
-            return;
-        }
-
         flashbackRedroided$dialogChain(
                 "save",
                 future,
                 path -> flashbackRedroided$withExtension(path, autoExtension),
                 () -> {
-                    flashbackRedroided$ensureNfd();
+                    if (!flashbackRedroided$ensureNfd()) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         PointerBuffer outPath = stack.callocPointer(1);
                         int result = NativeFileDialog.NFD_SaveDialog(
@@ -485,12 +459,18 @@ public class AsyncFileDialogsMixin {
                     }
                 },
                 () -> {
+                    if (!tinyUsable) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         return TinyFileDialogs.tinyfd_saveFileDialog(
                                 filterDescription != null ? filterDescription : "Save file",
                                 defaultName != null && !defaultName.isEmpty() ? defaultName : "export",
                                 flashbackRedroided$tinyPatterns(stack, filters),
                                 filterDescription);
+                    } catch (LinkageError | RuntimeException t) {
+                        tinyUsable = false;
+                        throw t;
                     }
                 },
                 () -> flashbackRedroided$fallbackExportPath(defaultName, filters));
@@ -521,17 +501,14 @@ public class AsyncFileDialogsMixin {
 
         flashbackRedroided$armTimeout(future, "open", () -> null);
 
-        if (flashbackRedroided$isAndroid()) {
-            flashbackRedroided$useFallback(future, "open", () -> null);
-            return;
-        }
-
         flashbackRedroided$dialogChain(
                 "open",
                 future,
                 path -> path,
                 () -> {
-                    flashbackRedroided$ensureNfd();
+                    if (!flashbackRedroided$ensureNfd()) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         PointerBuffer outPath = stack.callocPointer(1);
                         int result = NativeFileDialog.NFD_OpenDialog(
@@ -548,6 +525,9 @@ public class AsyncFileDialogsMixin {
                     }
                 },
                 () -> {
+                    if (!tinyUsable) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         return TinyFileDialogs.tinyfd_openFileDialog(
                                 filterDescription != null ? filterDescription : "Open file",
@@ -555,6 +535,9 @@ public class AsyncFileDialogsMixin {
                                 flashbackRedroided$tinyPatterns(stack, filters),
                                 filterDescription,
                                 false);
+                    } catch (LinkageError | RuntimeException t) {
+                        tinyUsable = false;
+                        throw t;
                     }
                 },
                 () -> null);
@@ -588,17 +571,14 @@ public class AsyncFileDialogsMixin {
 
         flashbackRedroided$armTimeout(future, "folder", fallback);
 
-        if (flashbackRedroided$isAndroid()) {
-            flashbackRedroided$useFallback(future, "folder", fallback);
-            return;
-        }
-
         flashbackRedroided$dialogChain(
                 "folder",
                 future,
                 path -> path,
                 () -> {
-                    flashbackRedroided$ensureNfd();
+                    if (!flashbackRedroided$ensureNfd()) {
+                        return null;
+                    }
                     try (var stack = MemoryStack.stackPush()) {
                         PointerBuffer outPath = stack.callocPointer(1);
                         int result = NativeFileDialog.NFD_PickFolder(
@@ -613,9 +593,19 @@ public class AsyncFileDialogsMixin {
                         return flashbackRedroided$nfdPath(outPath);
                     }
                 },
-                () -> TinyFileDialogs.tinyfd_selectFolderDialog(
-                        "Select folder",
-                        defaultPath != null ? defaultPath : ""),
+                () -> {
+                    if (!tinyUsable) {
+                        return null;
+                    }
+                    try {
+                        return TinyFileDialogs.tinyfd_selectFolderDialog(
+                                "Select folder",
+                                defaultPath != null ? defaultPath : "");
+                    } catch (LinkageError | RuntimeException t) {
+                        tinyUsable = false;
+                        throw t;
+                    }
+                },
                 fallback);
     }
 }
