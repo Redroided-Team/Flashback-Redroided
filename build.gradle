@@ -100,11 +100,13 @@ shadow files("deps/imgui-java-natives-android.jar")
 
 def modVersion = providers.gradleProperty("mod_version")
 
+def buildHash = providers.exec { commandLine("git", "rev-parse", "--short", "HEAD") }.standardOutput.asText.get().trim()
 processResources {
 inputs.property("version", modVersion)
+inputs.property("buildHash", buildHash)
 
 filesMatching("fabric.mod.json") {
-    expand(version: modVersion.get())
+    expand(version: modVersion.get(), buildHash: buildHash)
 }
 
 }
