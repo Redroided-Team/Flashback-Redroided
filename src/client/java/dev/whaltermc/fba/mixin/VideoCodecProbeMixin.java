@@ -63,6 +63,29 @@ public abstract class VideoCodecProbeMixin {
         }
     }
 
+    // Encoders whose native open is known to kill budget SoCs (SIGILL during
+    // init, observed with SVT-AV1 while libaom-av1 opened cleanly on the same
+    // device). Matched loosely so future SVT variants are covered too.
+    private static boolean isSimdHazard(AVCodec codec) {
+        try {
+            String name = codec != null && !codec.isNull() && codec.name() != null
+                    ? codec.name().getString() : "";
+            return name != null && name.toLowerCase(java.util.Locale.ROOT).contains("svt");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static String codecName(AVCodec codec) {
+        try {
+            if (codec != null && !codec.isNull() && codec.name() != null) {
+                return codec.name().getString();
+            }
+        } catch (Throwable ignored) {
+        }
+        return "<unknown>";
+    }
+
     // Launchers report Android via os.version or ANDROID_ROOT; desktops never do.
     private static boolean flashbackRedroided$isAndroid() {
         try {
@@ -114,21 +137,15 @@ public abstract class VideoCodecProbeMixin {
             Operation<Integer> original
     ) {
         if (!isMediaCodecEncoder(codec)) {
-            // Software encoders are never opened natively on Android: some
-            // (e.g. SVT-AV1) execute instructions missing on budget SoCs and
-            // kill the process with SIGILL, which no catch can survive. Report
-            // them as unavailable instead; MediaCodec encoders below still
-            // probe for real.
-            if (flashbackRedroided$isAndroid()) {
-                String name = "<unknown>";
-                try {
-                    if (codec != null && !codec.isNull() && codec.name() != null) {
-                        name = codec.name().getString();
-                    }
-                } catch (Throwable ignored) {
-                }
+            // Only proven SIMD hazards skip the native open: SVT-AV1 executes
+            // instructions missing on budget SoCs and kills the process with
+            // SIGILL, which no catch can survive. Everything else probes for
+            // real, so devices without working hardware encoders still get
+            // software options (e.g. libx264 with a compatible pixel format).
+            if (flashbackRedroided$isAndroid() && isSimdHazard(codec)) {
+                String name = codecName(codec);
                 if (SKIPPED.add(name)) {
-                    LOGGER.info("FBA: skipping software encoder probe on Android: {}", name);
+                    LOGGER.info("FBA: skipping hazardous software encoder probe on Android: {}", name);
                 }
                 return -22; // EINVAL: unavailable without a native open.
             }
