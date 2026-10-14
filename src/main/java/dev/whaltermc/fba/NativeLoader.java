@@ -61,6 +61,7 @@ public final class NativeLoader {
     };
 
     private static boolean done;
+    private static boolean systemLibsDone;
 
     private NativeLoader() {}
 
@@ -72,10 +73,28 @@ public final class NativeLoader {
         // linux-arm64 .so files on Android). Never clear this flag.
         System.setProperty("org.bytedeco.javacpp.loadlibraries", "false");
 
+        // Diagnosis escape hatch: -Dfba.skipNatives=true loads nothing.
+        // Game boots without FFmpeg/ImGui natives (export/UI degraded).
+        if (Boolean.getBoolean("fba.skipNatives")) {
+            LOGGER.warn("FBA: fba.skipNatives set, skipping all native loads");
+            return;
+        }
+
         warmupPresetClasses();
 
-        loadSystemLib("mediandk");
-        loadSystemLib("android");
+        // Do NOT eagerly System.load mediandk/android here. On Samsung
+        // Android 15/16 (S25 Ultra) an explicit load triggers framework JNI
+        // registration for com/android/internal/protolog/ProtoLogNative,
+        // which is absent from the launcher JVM classpath -> SIGABRT
+        // ("Native registration unable to find class ...; aborting...").
+        // An abort kills the process and cannot be caught with try/catch,
+        // so it must never run at preLaunch. The linker resolves DT_NEEDED
+        // system deps automatically when the bundled FFmpeg libs load.
+        // Opt-in only for devices that prove they need explicit preload:
+        // -Dfba.loadSystemLibs=true
+        if (Boolean.getBoolean("fba.loadSystemLibs")) {
+            ensureSystemLibs();
+        }
 
         try {
             ModContainer mod = FabricLoader.getInstance().getModContainer(MOD_ID)
@@ -93,7 +112,10 @@ public final class NativeLoader {
 
             int loaded = 0;
             int missing = 0;
-            for (String lib : LIBS) {
+            if (Boolean.getBoolean("fba.skipFFmpeg")) {
+                LOGGER.warn("FBA: fba.skipFFmpeg set, skipping FFmpeg natives (export disabled)");
+                missing = LIBS.length;
+            } else for (String lib : LIBS) {
                 try {
                     Path p = dir.resolve(lib);
                     if (!Files.isRegularFile(p)) {
@@ -196,6 +218,26 @@ public final class NativeLoader {
         } catch (Throwable t) {
             LOGGER.warn("FBA: could not pin ImGui native, launcher default applies", t);
         }
+    }
+
+    /**
+     * Lazy, opt-in explicit preload of NDK system libs. Only runs when
+     * -Dfba.loadSystemLibs=true is set. Called from init() (opt-in path) and
+     * available to the MediaCodec export path if a device ever proves it
+     * needs an explicit preload instead of DT_NEEDED resolution. Never call
+     * this unconditionally at preLaunch: on some firmware an explicit
+     * System.load of these libs SIGABRTs (ProtoLogNative) and try/catch
+     * cannot save the process.
+     */
+    public static synchronized void ensureSystemLibs() {
+        if (systemLibsDone) return;
+        systemLibsDone = true;
+        if (Boolean.getBoolean("fba.skipNatives")
+                || Boolean.getBoolean("fba.skipSystemLibs")) {
+            return;
+        }
+        loadSystemLib("mediandk");
+        loadSystemLib("android");
     }
 
     private static void loadSystemLib(String name) {
