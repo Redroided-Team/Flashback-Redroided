@@ -230,5 +230,6 @@ tasks.named("remapJar") {
     dependsOn(shadowJar)
     inputFile.set(shadowJar.archiveFile)
     archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
+    archiveVersion.set("${project.version}+${buildHash}")
     archiveClassifier.set("")
 }

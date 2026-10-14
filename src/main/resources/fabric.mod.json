@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "flashback_android",
   "version": "${version}",
-  "name": "FBA - Flashback For Android (${buildHash})",
+  "name": "FBA - Flashback For Android",
   "description": "Flashback on Android. Runtime patches so Flashback replays, ImGui UI, file dialogs, exports and FFmpeg recording work on Android launchers. Requires the original Flashback mod, Fabric Loader and Fabric API.",
   "icon": "assets/flashback_android/icon.png",
   "environment": "client",
