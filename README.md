@@ -77,9 +77,11 @@ Flashback Redroided's own code is **All Rights Reserved** — see [LICENSE](http
 
 Bundled third-party components keep their own licenses (see `NOTICE`):
 
-- [FFmpeg](https://ffmpeg.org) — GPL-3.0-or-later
+- [FFmpeg](https://ffmpeg.org) — LGPL-3.0-or-later (the LGPL build, without libx264/libx265)
 - [JavaCpp](https://github.com/bytedeco/javacpp) — Apache-2.0
 - [ImGui-Java (Redroided-Team fork)](https://github.com/Redroided-Team/imgui-java) — MIT
+- [MixinExtras](https://github.com/LlamaLad7/MixinExtras) — MIT
+- [LLVM libc++](https://libcxx.llvm.org) — Apache-2.0 with LLVM Exceptions
 
 ## Credits & Dependencies
 [Flashback](https://modrinth.com/mod/flashback), see [LICENSE](https://github.com/Moulberry/Flashback/blob/master/LICENSE.md)

@@ -24,9 +24,11 @@ licenses, and nothing in this license restricts your rights with respect
 to them. See the NOTICE file and the license texts under META-INF/ for
 details:
 
-- FFmpeg (lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**) — GPL-3.0-or-later
+- FFmpeg (lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**) — LGPL-3.0-or-later
 - JavaCPP (org/bytedeco/javacpp/**) — Apache License 2.0
 - imgui-java (io/imgui/java/**) — MIT
+- MixinExtras (com/llamalad7/mixinextras/** — bundled on some branches) — MIT
+- LLVM libc++ runtime (lib/arm64-v8a/libc++_fba.so) — Apache-2.0 with LLVM Exceptions
 
 The Flashback mod itself is NOT included in this distribution; obtain it
 separately and follow its own license.
