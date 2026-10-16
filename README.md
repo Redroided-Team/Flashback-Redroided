@@ -10,16 +10,19 @@ Flashback Redroided is a small addon that patches the parts of Flashback that do
 
 | Branch | Minecraft | Jar |
 | --- | --- | --- |
-| `1.21` | 1.21 – 1.21.11 | `fba-1.21-1.21.11-<version>.jar` |
-| `26.x` | 26.1 – 26.2 | `fba-26.1-26.2-<version>.jar` |
-| `main` | 26.3 | `fba-26.3-<version>.jar` |
+| `1.21` | 1.21 – 1.21.11 | `fba-<version>+mc1.21-1.21.11.jar` |
+| `26.x` | 26.1 – 26.2 | `fba-<version>+mc26.1-26.2.jar` |
+| `main` | 26.3 | `fba-<version>+mc26.3.jar` |
 
-Pick the jar that matches your Minecraft version.
+Pick the jar that matches your Minecraft version. The `+mc…` part is the
+range of Minecraft versions the jar supports.
 
 ## Downloads
 
-- Stable releases: [GitHub Releases](https://github.com/whaltermc/Flashback-Redroided/releases) (published from `v*` tags).
-- Dev builds: rolling prereleases `dev-1.21`, `dev-26.x` and `dev-main`, updated on every push.
+- Stable releases: [GitHub Releases](https://github.com/Redroided-Team/Flashback-Redroided/releases) (published from `v*` tags).
+- Dev builds: the single rolling prerelease `dev`, updated on every push. It
+  contains one jar per branch; pick the one whose `+mc…` range matches your
+  Minecraft version.
 
 Both are direct `.jar` downloads — no need to unzip anything.
 
@@ -81,8 +84,10 @@ Flashback Redroided's own code is **All Rights Reserved** — see [LICENSE](LICE
 
 Bundled third-party components keep their own licenses (see [NOTICE](NOTICE)):
 
-- [FFmpeg](https://ffmpeg.org) — GPL-3.0-or-later
+- [FFmpeg](https://ffmpeg.org) — LGPL-3.0-or-later (the LGPL build, without libx264/libx265)
 - [JavaCpp](https://github.com/bytedeco/javacpp) — Apache-2.0
 - [ImGui-Java (Redroided-Team fork)](https://github.com/Redroided-Team/imgui-java) — MIT
+- [MixinExtras](https://github.com/LlamaLad7/MixinExtras) — MIT
+- [LLVM libc++](https://libcxx.llvm.org) — Apache-2.0 with LLVM Exceptions
 
 Flashback by [Moulberry](https://modrinth.com/mod/flashback) — download it separately and follow its license.

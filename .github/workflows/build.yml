@@ -38,10 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fba-${{ matrix.branch }}-${{ github.sha }}
-          path: |
-            build/libs/fba-*-*.jar
-            build/libs/flashback-redroided-*-*.jar
-            !build/libs/*-sources.jar
+          path: build/libs/fba-*+mc*.jar
           if-no-files-found: error
 
   release:
@@ -70,26 +67,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    strategy:
-      matrix:
-        branch: [1.21, 26.x, main]
-    # One updater per rolling tag at a time: concurrent runs otherwise
-    # delete/upload the same asset simultaneously and GitHub 404s.
+    # A single rolling tag is updated by every branch push. Serialize runs so
+    # concurrent builds don't delete/upload the same asset simultaneously
+    # (that race makes GitHub 404 the upload).
     concurrency:
-      group: dev-release-${{ matrix.branch }}
+      group: dev-release
       cancel-in-progress: false
     steps:
-      - name: Download jar for ${{ matrix.branch }}
+      - name: Download built jars
         uses: actions/download-artifact@v4
         with:
-          name: fba-${{ matrix.branch }}-${{ github.sha }}
+          pattern: fba-*-${{ github.sha }}
           path: dist
+          merge-multiple: true
 
       - name: Publish rolling dev release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: dev-${{ matrix.branch }}
-          name: Dev build (${{ matrix.branch }})
-          body: Latest dev build from ${{ matrix.branch }} @ ${{ github.sha }}
+          tag_name: dev
+          name: Dev build
+          body: |
+            Latest dev build @ ${{ github.sha }}
+
+            Supported Minecraft versions:
+            | Jar | Minecraft versions |
+            | --- | --- |
+            | `1.21` | 1.21 – 1.21.11 |
+            | `26.x` | 26.1 – 26.2 |
+            | `main` | 26.3 |
           prerelease: true
           files: dist/*.jar
