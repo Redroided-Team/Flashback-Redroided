@@ -122,7 +122,7 @@ public abstract class VideoCodecProbeMixin {
             // instructions missing on budget SoCs and kills the process with
             // SIGILL, which no catch can survive. Everything else probes for
             // real, so devices without working hardware encoders still get
-            // software options (e.g. libx264 with a compatible pixel format).
+            // software options (e.g. libopenh264 with a compatible pixel format).
             if (AndroidInput.isMobile() && isSimdHazard(codec)) {
                 String name = codecName(codec);
                 if (SKIPPED.add(name)) {

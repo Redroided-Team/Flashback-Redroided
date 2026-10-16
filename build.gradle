@@ -89,7 +89,13 @@ modCompileOnly "org.lwjgl:lwjgl-nfd:3.3.3"
 modCompileOnly "org.lwjgl:lwjgl-tinyfd:3.3.3"
 
 shadow "org.bytedeco:ffmpeg:8.1.2-1.5.14"
-shadow "org.bytedeco:ffmpeg:8.1.2-1.5.14:android-arm64-gpl"
+// LGPL build (no --enable-gpl): keeps this mod's own code All-Rights-
+// Reserved. Software H.264 encoding is provided by libopenh264 (BSD),
+// AV1 by libaom/SVT-AV1 and VP8/VP9 by libvpx; hardware MediaCodec
+// encoders are unaffected. The -gpl classifier (libx264/libx265) is
+// deliberately NOT used because GPL-3.0 would force this mod to be
+// GPL too. See NOTICE for details.
+shadow "org.bytedeco:ffmpeg:8.1.2-1.5.14:android-arm64"
 shadow "org.bytedeco:javacpp:1.5.14"
 shadow "org.bytedeco:javacpp:1.5.14:android-arm64"
 
@@ -135,8 +141,8 @@ jar {
 }
 
 shadowJar {
-    archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
-    archiveVersion.set(project.version.toString())
+    archiveBaseName.set(project.archives_base_name)
+    archiveVersion.set("${project.version}+mc${project.mc_range}")
     archiveClassifier.set("")
     destinationDirectory.set(layout.buildDirectory.dir("intermediates"))
 
@@ -229,7 +235,7 @@ dependsOn(shadowJar)
 tasks.named("remapJar") {
     dependsOn(shadowJar)
     inputFile.set(shadowJar.archiveFile)
-    archiveBaseName.set("${project.archives_base_name}-${project.mc_range}")
-    archiveVersion.set("${project.version}+${buildHash}")
+    archiveBaseName.set(project.archives_base_name)
+    archiveVersion.set("${project.version}+mc${project.mc_range}")
     archiveClassifier.set("")
 }

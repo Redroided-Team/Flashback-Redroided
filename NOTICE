@@ -18,14 +18,24 @@ remain under their respective licenses, which grant you redistribution
 and other rights independently of this mod's license.
 
 FFmpeg (from Maven Central: org.bytedeco:ffmpeg:8.1.2-1.5.14,
-classifier android-arm64-gpl)
+classifier android-arm64 — the LGPL build, without GPL-only components
+such as libx264/libx265)
   Files:     lib/arm64-v8a/*.so, org/bytedeco/ffmpeg/**
-  License:   GPL-3.0-or-later (unmodified FFmpeg Android/arm64 shared
-             libraries built from the official FFmpeg sources;
-             see META-INF/licenses/GPL-3.0.txt)
+  License:   LGPL-3.0-or-later (unmodified FFmpeg Android/arm64 shared
+             libraries built from the official FFmpeg sources with
+             --enable-version3 and without --enable-gpl; the LGPLv3 text
+             incorporates GPLv3 by reference, so both
+             META-INF/licenses/LGPL-3.0.txt and
+             META-INF/licenses/GPL-3.0.txt are included)
   Homepage:  https://ffmpeg.org
   Source:    https://ffmpeg.org/download.html
+             https://github.com/bytedeco/javacpp-presets/tree/master/ffmpeg
   Copyright: FFmpeg contributors
+  Note:      As required by the LGPL, the full corresponding source for
+             these unmodified libraries is available from the URLs above.
+             We ship them as separate shared libraries (loaded at runtime
+             through JNI) and do not modify them, so they can be replaced
+             with any compatible LGPL build.
 
 JavaCPP
   Files:     org/bytedeco/javacpp/**
@@ -40,11 +50,22 @@ imgui-java (Android natives / ImGui binding used by Flashback)
   Upstream:  https://github.com/SpaiR/imgui-java
   Copyright: SpaiR and contributors; Dear ImGui by Omar Cornut
 
+MixinExtras (used by this mod's mixins; bundled — shaded on 26.x,
+Jar-in-Jar on 1.21; on other branches it is provided by the Fabric Loader
+and not redistributed by this mod)
+  Files:     com/llamalad7/mixinextras/** (shaded classes on 26.x, or the
+             nested META-INF/jars/mixinextras-fabric-0.5.5.jar Jar-in-Jar
+             on 1.21)
+  License:   MIT (see META-INF/licenses/MixinExtras-LICENSE.txt)
+  Homepage:  https://github.com/LlamaLad7/MixinExtras
+  Copyright: LlamaLad7
+
 LLVM libc++ runtime (pre-loaded so the ImGui native resolves; shipped
 under a bumped SONAME so the game runtime's own libc++ can't shadow it)
   Files:     lib/arm64-v8a/libc++_fba.so
   License:   Apache License 2.0 with LLVM Exceptions
-             (https://llvm.org/foundation/relicensing/)
+             (see META-INF/licenses/Apache-2.0.txt and
+             META-INF/licenses/LLVM-exception.txt)
   Homepage:  https://libcxx.llvm.org
   Copyright: The LLVM Project (see https://llvm.org/LICENSE.txt)
 
