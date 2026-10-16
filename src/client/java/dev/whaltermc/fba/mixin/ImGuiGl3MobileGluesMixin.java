@@ -3,29 +3,62 @@
 package dev.whaltermc.fba.mixin;
 
 import dev.whaltermc.fba.AndroidInput;
+import org.lwjgl.opengl.GL32;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * Flashback pins its ImGui GL backend to a desktop shader: {@code ReplayUI}
- * calls {@code init("#version 150")}, so {@code createDeviceObjects} always
- * resolves {@code glslVersionValue == 150} and selects the {@code glsl130}
- * desktop pair ({@code in}/{@code out} + {@code texture()}) — never the
- * GLES-native {@code #version 300 es} pair the same class already ships.
+ * Two MobileGlues hardening changes for Flashback's ImGui GL backend
+ * ({@code CustomImGuiImplGl3}). Both are scoped to MobileGlues; every other
+ * renderer keeps Flashback's original behaviour.
  *
- * Under MobileGlues that desktop GLSL has to be rewritten to GLSL ES at
- * runtime. When the translation fails to compile, the program links to
- * nothing and every editor panel draws black. Retargeting the GLSL version to
- * {@code 300 es} makes the backend take its ES path instead: pure GLES
- * sources with explicit precision qualifiers, which is exactly what
- * MobileGlues asks shader authors to emit. No translation is involved.
+ * <p><b>1. Report GL 2.1 to the backend.</b> MobileGlues advertises a high
+ * desktop GL (it declares GLSL 4.60), which trips Flashback's
+ * {@code glVersion >= 320} / {@code >= 450} feature gates into enabling
+ * {@code RendererHasVtxOffset} and drawing with
+ * {@code glDrawElementsBaseVertex}. MobileGlues' base-vertex / MultiDraw
+ * emulation is a documented black-UI culprit (its V1.3.2 notes call out
+ * "UI disappearance" from the draw_elements_base_vertex path, and issue #404
+ * reports a black screen with "prefer base vertex"). Faking the version to
+ * 2.1 keeps every modern path off: plain {@code glDrawElements}, no
+ * clip-origin query, no base vertex.
  *
- * The override is scoped to MobileGlues only; every other renderer keeps
- * Flashback's original {@code #version 150}.
+ * <p><b>2. Use the GLES-native ImGui shader.</b> {@code ReplayUI} calls
+ * {@code init("#version 150")}, so {@code createDeviceObjects} always selects
+ * the {@code glsl130} desktop pair and never the pure-GLES {@code #version
+ * 300 es} pair the same class ships. Retargeting the GLSL version makes the
+ * backend emit explicit-precision GLES shaders with no desktop-to-ES
+ * translation.
  */
 @Mixin(targets = "com.moulberry.flashback.editor.ui.CustomImGuiImplGl3", remap = false)
 public abstract class ImGuiGl3MobileGluesMixin {
+
+    // glGetInteger is invoked three times in init(): GL_MAJOR_VERSION,
+    // GL_MINOR_VERSION and GL_CONTEXT_PROFILE_MASK. Only the first two are
+    // faked; the profile-mask query passes straight through to the driver.
+    @Redirect(
+            method = "init(Ljava/lang/String;)Z",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lorg/lwjgl/opengl/GL32;glGetInteger(I)I",
+                    remap = false
+            ),
+            remap = false,
+            require = 0
+    )
+    private int flashbackRedroided$fakeDesktopGl(int pname) {
+        if (AndroidInput.isMobileGlues()) {
+            if (pname == GL32.GL_MAJOR_VERSION) {
+                return 2;
+            }
+            if (pname == GL32.GL_MINOR_VERSION) {
+                return 1;
+            }
+        }
+        return GL32.glGetInteger(pname);
+    }
 
     @ModifyVariable(
             method = "init(Ljava/lang/String;)Z",
