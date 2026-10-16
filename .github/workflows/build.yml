@@ -81,6 +81,17 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Keep exactly one rolling release: delete every dev* release and its
+      # tag before re-publishing, so the freshly downloaded jars are the only
+      # assets and no stale releases accumulate.
+      - name: Delete old dev releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --json tagName -q '.[].tagName' | grep -E '^dev(-.*)?$' | while read -r tag; do
+            gh release delete "$tag" --yes --cleanup-tag || true
+          done
+
       - name: Publish rolling dev release
         uses: softprops/action-gh-release@v2
         with:
