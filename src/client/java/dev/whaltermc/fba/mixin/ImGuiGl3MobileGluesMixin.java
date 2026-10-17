@@ -25,12 +25,14 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * 2.1 keeps every modern path off: plain {@code glDrawElements}, no
  * clip-origin query, no base vertex.
  *
- * <p><b>2. Use the GLES-native ImGui shader.</b> {@code ReplayUI} calls
+ * <p><b>2. Use the GLSL 1.20 compatibility shader.</b> {@code ReplayUI} calls
  * {@code init("#version 150")}, so {@code createDeviceObjects} always selects
- * the {@code glsl130} desktop pair and never the pure-GLES {@code #version
- * 300 es} pair the same class ships. Retargeting the GLSL version makes the
- * backend emit explicit-precision GLES shaders with no desktop-to-ES
- * translation.
+ * the {@code glsl130} desktop pair (value 150 falls through to the else arm).
+ * Dropping the version below 130 selects the {@code glsl120} pair instead,
+ * which already guards its precision qualifier with {@code #ifdef GL_ES} — the
+ * classic desktop-to-ES translation path MobileGlues is battle-tested against.
+ * (Forcing the {@code 300 es} pair proved device-dependent: some GPUs compiled
+ * it, others flickered or stayed black.)
  */
 @Mixin(targets = "com.moulberry.flashback.editor.ui.CustomImGuiImplGl3", remap = false)
 public abstract class ImGuiGl3MobileGluesMixin {
@@ -68,7 +70,8 @@ public abstract class ImGuiGl3MobileGluesMixin {
             remap = false,
             require = 0
     )
-    private String flashbackRedroided$useGlesShader(String glslVersion) {
-        return AndroidInput.isMobileGlues() ? "#version 300 es" : glslVersion;
+    private String flashbackRedroided$useCompatShader(String glslVersion) {
+        // Value must parse below 130 to reach createDeviceObjects' glsl120 arm.
+        return AndroidInput.isMobileGlues() ? "#version 120" : glslVersion;
     }
 }
